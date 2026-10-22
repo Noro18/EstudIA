@@ -1,0 +1,30 @@
+[project]
+name = "studia"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Noro18", email = "zeroxg534@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pymupdf>=2.0",
+    "python-docx>=1.2.0",
+    "sentence-transformers>=6.1.0",
+    "torch>=2.14.1",
+]
+
+[project.scripts]
+studia = "studia:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
