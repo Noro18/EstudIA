@@ -50,6 +50,8 @@ If the PRD and the implemented code disagree, treat it as a bug: report it, do n
 
 ### Rules that follow from the PRD
 
+- **No decision without the user (added Oct 22, standing rule).** Design or implementation choices are never decided silently — not even small ones. Schema fields, thresholds, defaults, numbers, libraries, flow details, error mappings: present the problem, lay out the options with a recommendation, and wait for the user's explicit choice before writing anything into docs or code. A proposed bug fix is still a decision. After approval, record the choice in the relevant doc's decision ledger.
+
 - **Every change traces to the PRD.** State what you are implementing and which must/should/optional scope item covers it. If nothing in the PRD covers it, ask the user — do not invent scope.
 - **Scope priorities are enforced.** Must have (PRD § 3) before should have before optional. No large new features after Day 10 (Oct 28); feature freeze is a real rule.
 - **Answers are always in Tetum**, but prompts are written in English with 2-3 short Tetum few-shot examples.
@@ -92,6 +94,7 @@ If a request conflicts with the PRD, stop and ask the user instead of silently b
 | Secrets | Environment variables only; provider spending cap set in the console |
 | API tokens | Never in code, never in git. Use env vars or run-time flags |
 | Feature freeze | Oct 28 (Day 10). Nov 1 demo-ready, Nov 2 submission only |
+| Decision making | **Ask first, decide together.** No silent choices: options + recommendation → user approves → then write. Bug-sized fixes count as decisions too |
 | Unanswered items | If the PRD has an open decision (§ 14) that affects the task, ask — do not guess |
 
 ## Required files to check before starting

@@ -2,11 +2,13 @@
 
 The single source of truth for what the database stores and why. Contract source: `docs/StudIA — Product Requirements Document (v2).md` (below: "PRD"). If SQL and this document disagree, it is a bug: report it, do not silently pick one.
 
-App layout follows the approved structure: `documents`, `qa`, `llm`, `rag` (service layer, no tables), `accounts` (thin profile).
+App layout follows the approved structure (apps under the `apps/` package, EC-Backlog-Management conventions, Oct 22): module paths `apps.accounts`, `apps.documents`, `apps.qa`, `apps.llm`, `apps.rag`; Django *labels* stay bare (`accounts`, `documents`, ...), so all table names below are unchanged.
 
 ---
 
 ## 1. Decisions (final)
+
+Approved **Oct 22 by the user**: D1–D8, plus the nine audit decisions (excerpt 280 chars, conversation-row locking, upload-validate-first, `supported` = validated-citations rule, traceback handling, HNSW defaults, local embeddings exempt from quota, the two § 5 exclusions). Future changes to any of these require a new user decision.
 
 | # | Decision | Value | Reason |
 |---|---|---|---|
@@ -17,6 +19,7 @@ App layout follows the approved structure: `documents`, `qa`, `llm`, `rag` (serv
 | D5 | Chat history storage | **Normalized `Message` rows** (never JSON blobs on Conversation) | FK integrity for citations, `supported`/`rewritten_text` per bubble, ordered reads (§ 8 ask contract) |
 | D6 | Summary storage | **Columns on Document** (`summary_text`, `summary_created_at`), regenerate only when `NULL` or user forces | PRD: "generate once per document and cache" |
 | D7 | Answer-prompt history budget | **Sliding window: keep the newest messages under `HISTORY_TOKEN_BUDGET` (default 2,500 tokens), drop the rest; history shrinks before retrieved chunks** | caps per-turn cost/latency growth and attention dilution; document facts are never carried in history — chunks are re-retrieved fresh every ask (§ 4.2) |
+| D8 | Full-text search configuration | **`to_tsvector('simple', text)` — lowercase + split only, no stemming; built during ingestion, GIN-indexed; no live triggers; prefix (`:*`) queries allowed** | Postgres ships no Tetum dictionary — `'english'`/`'portuguese'` stemmers would mangle Tetum words and corrupt keyword matches; `'simple'` is lossless for all three corpus languages. Keyword quality is then the bake-off's job (§ 10) |
 
 ---
 
@@ -92,10 +95,10 @@ The retrieval atom. Written only during ingestion; never modified after `ready`.
 | `text` | TextField | the chunk content (~300-600 tokens, overlap per PRD § 4 C) |
 | `token_count` | IntegerField | honest size for prompt budgeting |
 | `embedding` | VectorField(**NULLABLE until D2 dim frozen**), then NOT NULL | pgvector; HNSW index |
-| `search_vector` | SearchVectorField | Postgres full-text index; GIN index; updated at chunk creation |
+| `search_vector` | SearchVectorField | built with `to_tsvector('simple', text)` at ingestion (D8); GIN index; no live triggers — updated only during ingestion or manual re-index |
 
 Indexes:
-- `HNSW (embedding vector_cosine_ops)` — vector half of hybrid retrieval (PRD § 6)
+- `HNSW (embedding vector_cosine_ops)` — vector half of hybrid retrieval (PRD § 6); library-default index parameters, tuned only if recall@k (§ 10) misses its target
 - `GIN (search_vector)` — keyword half (Postgres FTS, PRD § 6)
 - `(document, page_number)` — citation assembly and per-document chunk fetch
 
@@ -118,7 +121,7 @@ One bubble. `role=user` and `role=assistant` rows alternate.
 | Field | Type | Notes |
 |---|---|---|
 | `conversation` | FK Conversation, CASCADE | |
-| `seq` | IntegerField | dense ordering **within the conversation** (1, 2, 3...); enforced unique per conversation in ` save()`; history reads are `conversation.messages.order_by("seq")` |
+| `seq` | IntegerField | dense ordering **within the conversation** (1, 2, 3...); `(conversation, seq)` unique constraint; writes are serialized by locking the Conversation row (§ 4.2 step 2); history reads are `conversation.messages.order_by("seq")` |
 | `role` | CharField (`user`/`assistant`) | |
 | `content` | TextField | the markdown source text as produced/consumed |
 | `supported` | BooleanField, null | `null` for user rows; True/False on assistant rows — drives the honest `supported: false` UI state (PRD § 5 step 8) |
@@ -140,7 +143,7 @@ One citation row per chunk the answer used. Written **only** after validation ag
 | `message` | FK Message (assistant), CASCADE | |
 | `chunk` | FK Chunk, `PROTECT` | citations keep working even if chunks are ever cleaned up |
 | `page` | IntegerField | snapshot from chunk metadata |
-| `excerpt` | TextField | snapshot (first N chars) — the UI shows this, not `chunk.text` |
+| `excerpt` | TextField | snapshot: first 280 characters of the chunk text, `…` appended when truncated — the UI shows this, never `chunk.text` directly |
 | `order` | IntegerField | display order of citations |
 
 Indexes: `(message, order)`.
@@ -191,18 +194,22 @@ Indexes: `(user, created_at)` — the quota query; `(document,)` for per-demo-do
 ### 4.1 Ingestion (player: worker via django-q2)
 
 ```text
-upload view:  create Document(status=processing) → enqueue task → return id + status
+upload view:  validate FIRST (type in whitelist, size under cap)
+                - violations → error fragments unsupported_type / file_too_large, no row created
+              create Document(status=processing) → enqueue task → return id + status
 worker task:
   1. extract text per page
        - PDF: PyMuPDF text layer
        - page with no text layer → OCR (Tesseract pt/en/id)
        - OCR yields < threshold chars on ALL pages → status=failed, reason=scanned_no_text
-       - unsupported/corrupt file → status=failed, reason=unsupported_type
+       - corrupt file despite validation → status=failed, reason=unsupported_type
   2. write Page rows (number, text, is_scanned, ocr_used, char_count)
   3. chunk: ~300-600 tokens, overlap (same algorithm as experiments/studia_rag → promoted into rag/)
-  4. embed chunks (query-embed model + dim) → UPDATE document.embedding_model/embedding_dim (D2)
-  5. write Chunk rows: text, page_number, order_index, embedding, search_vector
-  6. status=ready, page_count set; on unhandled error → status=failed (+reason UsageRecord failure logged)
+  4. embed chunks (query-embed model + dim) → set Document.embedding_model/embedding_dim
+     BEFORE step 5 (D2 — chunks inserted only into a document that already names its dims)
+  5. write Chunk rows: text, page_number, order_index, embedding, search_vector (D8 config)
+  6. status=ready, page_count set; on unhandled error → status=failed with the mapped
+     failure_reason; the full traceback goes to application logs, not the database
 usage: ingest_embedding rows land in UsageRecord (cost of pre-embedding demo docs, PRD § 9.4)
 ```
 
@@ -217,6 +224,9 @@ POST /documents/{id}/ask/  (question, conversation_id?, stream?)
        - failed     → error fragment document_failed
   2. resolve Conversation:
        - conversation_id given → fetch (re-validate owner+document) else create new (D5: fresh folder)
+       - lock the Conversation row (`select_for_update`) for the whole request, released
+         after step 7 → all Message/`seq` writes for this conversation are serialized; two
+         concurrent asks can never compute the same next `seq`
   3. rewrite step (only if this conversation already has messages — PRD § 5 step 4):
        - standalone = llm.generate(prompt=REWRITE, history=last 6 Messages, question)  [non-stream]
        - Message(role=user, seq=next, content=question, rewritten_text=standalone)
@@ -239,10 +249,14 @@ POST /documents/{id}/ask/  (question, conversation_id?, stream?)
   6. stream (SSE) llm.generate(prompt, stream=True):
        - each chunk → accumulate text → mistune render-so-far (escaped) → SSE event
        - UsageRecord(purpose=ask) finalized at stream end with real token counts
-  7. on finish: parse model's used-chunk numbers → validate ⊆ supplied ids (PRD § 5 step 8)
-       - assistant Message: seq next, content=full text, supported=any_citations | model said unsupported
-       - MessageSource row per validated chunk (page/excerpt snapshot from chunk)
-       - if no valid citation + model said unsupported → supported=False, zero MessageSource rows
+  7. on finish: parse model's cited chunk numbers → validate ⊆ supplied ids (PRD § 5 step 8)
+       - assistant Message: seq=next, content=full text
+       - one mechanical honesty rule: supported = (count of validated citations ≥ 1).
+         No citations → supported=False, zero MessageSource rows. Model saying
+         "unsupported" settles it the same way. If the model answered without any
+         valid citation but did NOT disclaim → also supported=False + a warning log
+         (answer without grounding is treated as unsupported, never guessed)
+       - MessageSource row per validated chunk (order = display order)
        - conversation_id handed back to the client for follow-ups
 ```
 
@@ -275,6 +289,8 @@ before every ask / summary / study_questions request:
   used >= limit → error fragment rate_limited (PRD § 8 code list)
 ```
 
+`ingest_embedding` and `query_embedding` never count toward the quota: they are calls to the local embedding model (free), not the hosted LLM the quota is there to meter.
+
 ---
 
 ## 5. Not modeled on purpose
@@ -285,3 +301,5 @@ before every ask / summary / study_questions request:
 | JSON message blob on Conversation | D5; FK integrity + per-bubble flags win |
 | Per-user document quotas (separate table) | RNF07 asks usage limits, not storage limits; revisit only if the PRD grows |
 | Separate Summary/LLMLog tables | D6 + single-lens UsageRecord |
+| Stale-`processing` reaper | a worker crash mid-ingestion can leave a Document stuck `processing`; MVP answer is a manual admin flip to `failed`; revisit only if the demo suffers one |
+| Content dedup / extra compression of chunk text | not in competition scope; raw chunk text is already ~300-600 tokens |
