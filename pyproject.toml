@@ -1,25 +1,31 @@
 [project]
 name = "studia"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI study assistant for students in Timor-Leste (Tetum-first RAG)"
 readme = "README.md"
 authors = [
     { name = "Noro18", email = "zeroxg534@gmail.com" }
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "django>=6.1.2",
+    "django-q2>=1.11.1",
+    "httpx>=0.28.1",
+    "mistune>=3.4.0",
+    "pgvector>=0.5.1",
+    "psycopg[binary]>=3.3.6",
     "pymupdf>=2.0",
+    "pytesseract>=0.3.13",
+    "pytest>=9.1.1",
+    "pytest-django>=4.14.0",
     "python-docx>=1.2.0",
+    "python-dotenv>=1.2.4",
     "sentence-transformers>=6.1.0",
     "torch>=2.14.1",
 ]
 
-[project.scripts]
-studia = "studia:main"
-
-[build-system]
-requires = ["uv_build>=0.12.10,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = false
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
@@ -28,3 +34,7 @@ torch = { index = "pytorch-cpu" }
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["tests.py", "test_*.py"]

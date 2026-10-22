@@ -96,12 +96,13 @@ If a request conflicts with the PRD, stop and ask the user instead of silently b
 
 ## Required files to check before starting
 
-1. `docs/StudIA — Product Requirements Document (v2).md` — the PRD (source of truth for scope, architecture, API contracts, and evaluation)
-2. PRD **§ 8 API contracts** — endpoints and error format
-3. PRD **§ 5 System architecture** — RAG flow and prompting rules
-4. `dataset/` — benchmark and test documents (Tetum, Portuguese, English, poor scans)
-5. `.env` (without committing it) / `docker-compose.yml` — current env vars and deployment settings
-6. `pyproject.toml` / `uv.lock` — current dependencies
+1. `docs/StudIA — Product Requirements Document (v2).md` — the PRD (source of truth for scope, architecture, interface contracts, and evaluation)
+2. `docs/DATABASE.md` — the data model: tables, indexes, and the ingestion/ask/summary/quota flows that consume them
+3. PRD **§ 8 Interface contract** — endpoints and error format
+4. PRD **§ 5 System architecture** — RAG flow and prompting rules
+5. `dataset/` — benchmark and test documents (Tetum, Portuguese, English, poor scans)
+6. `.env` (without committing it) / `docker-compose.yml` — current env vars and deployment settings
+7. `pyproject.toml` / `uv.lock` — current dependencies
 
 ## Current project status (update as the project grows)
 
