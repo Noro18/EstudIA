@@ -34,3 +34,16 @@ def test_conversation_detail_isolated_from_other_users(logged_in):
     response = client.get(reverse("conversation_detail", args=(conversation.pk,)))
 
     assert response.status_code == 404
+
+
+def test_messages_render_in_seq_order(logged_in):
+    client, user = logged_in
+    notebook = NotebookFactory(user=user)
+    conversation = ConversationFactory(notebook=notebook, user=user)
+    MessageFactory(conversation=conversation, seq=2, content="second answer bubble")
+    MessageFactory(conversation=conversation, seq=1, content="first question bubble")
+
+    response = client.get(reverse("conversation_detail", args=(conversation.pk,)))
+
+    html = response.content
+    assert html.index(b"first question bubble") < html.index(b"second answer bubble")
