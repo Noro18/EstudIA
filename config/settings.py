@@ -17,7 +17,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.postgres",
-    "pgvector",
     "apps.accounts",
     "apps.documents",
     "apps.qa",
@@ -88,7 +87,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_DAILY_QUESTION_LIMIT = int(os.environ.get("DEFAULT_DAILY_QUESTION_LIMIT", "20"))
 HISTORY_TOKEN_BUDGET = int(os.environ.get("HISTORY_TOKEN_BUDGET", "2500"))
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "aisingapore/SEA-LION-ModernBERT-Embedding-300M")
-EMBEDDING_DIM = int(os.environ.get("EMBEDDING_DIM", "768"))
+EMBEDDING_DIM = int(os.environ.get("EMBEDDING_DIM", "1024"))
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.8-flash")

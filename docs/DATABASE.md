@@ -13,7 +13,7 @@ Approved **Oct 22 by the user**: D1–D8, plus the nine audit decisions (excerpt
 | # | Decision | Value | Reason |
 |---|---|---|---|
 | D1 | Page table | **Keep** | OCR detection, re-chunking without re-OCR, citation sanity (PRD § 5 step 2) |
-| D2 | Embedding model / dimensions | **One model: `EMBEDDING_MODEL` env var (default SEA-LION-ModernBERT-300M), dim frozen empirically** at first embedding run, then never changed silently | AGENTS.md rule: query embedding must use the same model/dims as stored chunks; PRD § 9.4 |
+| D2 | Embedding model / dimensions | **One model: `EMBEDDING_MODEL` env var (default SEA-LION-ModernBERT-300M), dim frozen empirically** — **measured Oct 22: `1024`** (both `get_embedding_dimension()` and an encoded sample), so `EMBEDDING_DIM` default is 1024; never change the pair silently | AGENTS.md rule: query embedding must use the same model/dims as stored chunks; PRD § 9.4 |
 | D3 | Quota limits | **On `Profile` (per-user)**, default falls back to settings | PRD "per-user usage limits" (must-have 3, RNF07); allows per-user overrides + admin demo controls |
 | D4 | Rewrite calls | **Always rewrite when the conversation has history; rewritten text stored; counts toward quota** | PRD § 5 step 4; § 9 cost discipline (a real API call is a real cost row) |
 | D5 | Chat history storage | **Normalized `Message` rows** (never JSON blobs on Conversation) | FK integrity for citations, `supported`/`rewritten_text` per bubble, ordered reads (§ 8 ask contract) |

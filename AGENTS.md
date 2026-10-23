@@ -58,7 +58,7 @@ If the PRD and the implemented code disagree, treat it as a bug: report it, do n
 - **Citations are never invented by the model.** The model may name chunk numbers it used; the backend validates them against supplied chunks and attaches stored document/page/excerpt metadata. This is a hard rule.
 - **Honest 'not found' answers are a feature.** If passages don't support an answer, say so in Tetum with `supported: false`. Never guess.
 - **Cost discipline.** Log tokens, latency, and estimated cost on every LLM call. Send only top retrieved passages, not whole documents. Cache summaries.
-- **No multi-document chat** — out of scope for the competition.
+- **Multi-document chat via Notebooks (decided Oct 23, supersedes the old "out of scope" rule).** A conversation belongs to a Notebook and answers over all its documents' chunks (PRD § 3 must-have 1-2 re-worded; spec 10; DATABASE.md D9). Still out of scope: chats that splice several notebooks together.
 
 ---
 
@@ -94,7 +94,9 @@ If a request conflicts with the PRD, stop and ask the user instead of silently b
 | Secrets | Environment variables only; provider spending cap set in the console |
 | API tokens | Never in code, never in git. Use env vars or run-time flags |
 | Feature freeze | Oct 28 (Day 10). Nov 1 demo-ready, Nov 2 submission only |
+| Test factories | **factory_boy, adopted Oct 23 from EC-Backlog-Management pattern.** All entity creation lives in `apps/<app>/tests/factories.py` as `DjangoModelFactory` classes (`Sequence` for uniques, `SubFactory` for dependencies). Tests call factories directly — no manual `create_user`/`model.objects.create` setup, no pytest fixtures for data. Dependent-owner convention: child factories inherit the owner via `LazyAttribute` (e.g. `user = lambda o: o.document.user`) so related rows always share one user |
 | Decision making | **Ask first, decide together.** No silent choices: options + recommendation → user approves → then write. Bug-sized fixes count as decisions too |
+| Commit hygiene (user rule, Oct 23) | **One logical change per commit — never batch unrelated changes into a single commit.** Before committing: `git status` + `git diff --stat`, slice into topical commits (docs/spec, dependency, scaffold, one commit per app's models/tests/migrations). Imperative subject lines. Never commit secrets (`.env`) or artifacts |
 | Unanswered items | If the PRD has an open decision (§ 14) that affects the task, ask — do not guess |
 
 ## Required files to check before starting
