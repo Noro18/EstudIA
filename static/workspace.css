@@ -40,6 +40,8 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
 .status-spinner{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:status-spin .8s linear infinite}
 .status-ready{color:#16803c;font-weight:700;font-size:14px;line-height:1}
 .status-label{display:inline-block}
+.message-loading{display:flex;align-items:center;min-height:24px}
+.message-spinner{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:status-spin .8s linear infinite}
 @keyframes status-spin{to{transform:rotate(360deg)}}
 .doc button{border:0;background:none;color:var(--muted);font-size:16px;padding:0 4px}
 .doc.err{border-color:#d9534f}
