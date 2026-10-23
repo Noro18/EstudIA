@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chat with your documents</title>
+<style>
+:root{--bg:#f6f6fa;--panel:#fff;--ink:#1d1b33;--muted:#6c6b85;--line:#e3e2ef;--brand:#4f46c8;--soft:#ecebfc;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14131f;--panel:#1d1c30;--ink:#ececfa;--muted:#9b9ab8;--line:#33305000;--line:#34314f;--brand:#7d75f0;--soft:#2b2950}}
+:root[data-theme="dark"]{--bg:#14131f;--panel:#1d1c30;--ink:#ececfa;--muted:#9b9ab8;--line:#34314f;--brand:#7d75f0;--soft:#2b2950}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI","Helvetica Neue",Arial,sans-serif;display:flex}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+.side{width:280px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px;gap:12px}
+.side h1{font-size:16px;margin:0}
+.up{background:var(--brand);color:#fff;border:0;border-radius:10px;padding:10px;font-weight:600}
+.up:hover{filter:brightness(1.1)}
+.hint{font-size:12px;color:var(--muted);margin:0}
+.docs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.doc{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px}
+.doc span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc small{color:var(--muted)}
+.doc button{border:0;background:none;color:var(--muted);font-size:16px;padding:0 4px}
+.doc.err{border-color:#d9534f}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:20px 0}
+
+.chat{flex:1;display:flex;flex-direction:column;min-width:0}
+.feed{flex:1;overflow-y:auto;padding:24px max(24px,calc((100% - 720px)/2));display:flex;flex-direction:column;gap:26px}
+.msg{max-width:720px;padding:0;white-space:pre-wrap;word-wrap:break-word}
+.msg.user{align-self:flex-end;max-width:520px;padding:10px 14px;border-radius:14px;border-bottom-right-radius:4px;background:var(--brand);color:#fff}
+.msg.ai{align-self:flex-start;max-width:720px;text-align:left}
+.msg.sys{align-self:center;color:var(--muted);font-size:13px;background:none;padding:0}
+.bar{padding:12px max(24px,calc((100% - 720px)/2)) 16px;display:flex;gap:8px;align-items:flex-end}
+.bar textarea{flex:1;resize:none;max-height:140px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;padding:10px 12px}
+.send{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:10px 18px;font-weight:600}
+.send:disabled{opacity:.5;cursor:not-allowed}
+.menu{display:none;position:absolute;top:10px;left:10px;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:4px 10px}
+@media (max-width:760px){
+ .side{position:fixed;inset:0 auto 0 0;z-index:5;width:min(300px,88vw);transform:translateX(-100%);transition:transform .2s;padding-top:calc(16px + env(safe-area-inset-top,0px))}
+ .side.open{transform:none;box-shadow:4px 0 24px rgba(0,0,0,.3)}
+ .menu{display:block;z-index:4}
+ .feed{padding:48px 14px 14px}.bar{padding:10px 14px 14px}
+}
+</style>
+</head>
+<body>
+<aside class="side" id="side">
+  <h1>Documents</h1>
+  <button class="up" id="up">Upload document</button>
+  <input type="file" id="file" accept=".pdf,.docx,.txt,.md" multiple hidden>
+  <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
+  <ul class="docs" id="docs"></ul>
+</aside>
+<button class="menu" id="menu" aria-label="Documents">☰ Documents</button>
+
+<main class="chat">
+  <div class="feed" id="feed" aria-live="polite">
+    <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
+  </div>
+  <div class="bar">
+    <textarea id="q" rows="1" placeholder="Ask about your document…"></textarea>
+    <button class="send" id="send">Send</button>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  var docs=[
+    {name:"Photosynthesis_Class10.pdf",text:"[Page 12]\nPhotosynthesis is the process plants use to turn light energy into chemical energy stored in glucose. It happens in two stages. The light reactions take place in the thylakoid membranes of the chloroplast. They need sunlight and produce ATP and NADPH, and release oxygen from splitting water.\n\n[Page 13]\nThe Calvin cycle takes place in the stroma of the chloroplast. It does not need light directly, but it uses the ATP and NADPH from the light reactions to turn carbon dioxide (CO2) into glucose."},
+    {name:"Science_Teacher_Notes.docx",text:"Key terms to memorize: chlorophyll (green pigment that absorbs light), stomata (pores in leaves for gas exchange), chloroplast (organelle where photosynthesis happens), glucose (sugar the plant makes for energy). Summary equation: 6CO2 + 6H2O + light energy -> C6H12O6 + 6O2."}
+  ],history=[
+    {role:"user",content:"What is the main difference between the light reactions and the Calvin cycle?"},
+    {role:"assistant",content:"The light reactions happen in the thylakoid membranes and need sunlight directly. They produce ATP and NADPH and release oxygen (Photosynthesis_Class10.pdf, page 12).\n\nThe Calvin cycle happens in the stroma and does not need light directly. It uses that ATP and NADPH to turn carbon dioxide into glucose (page 13)."},
+    {role:"user",content:"Which key terms do I need to memorize?"},
+    {role:"assistant",content:"According to Science_Teacher_Notes.docx, memorize these four terms:\n\n• Chlorophyll: the green pigment that absorbs light\n• Stomata: pores in leaves for gas exchange\n• Chloroplast: the organelle where photosynthesis happens\n• Glucose: the sugar the plant makes for energy\n\nThe notes also list the summary equation: 6CO2 + 6H2O + light energy -> C6H12O6 + 6O2."}
+  ],sample=null,busy=false,MAX=150000;
+  var feed=$("feed"),q=$("q"),send=$("send");
+
+  claude.use("sample").then(function(s){sample=s;if(!s)note("Chat isn't available in this view.")});
+
+  function note(t){var d=document.createElement("div");d.className="msg sys";d.textContent=t;feed.appendChild(d);feed.scrollTop=feed.scrollHeight}
+  function bubble(cls,t){var d=document.createElement("div");d.className="msg "+cls;d.textContent=t;feed.appendChild(d);feed.scrollTop=feed.scrollHeight;return d}
+
+  function renderDocs(){
+    var ul=$("docs");ul.innerHTML="";
+    if(!docs.length){var e=document.createElement("li");e.className="empty";e.textContent="No documents yet";ul.appendChild(e);return}
+    docs.forEach(function(d,i){
+      var li=document.createElement("li");li.className="doc"+(d.error?" err":"");
+      var s=document.createElement("span");s.textContent=d.name;s.title=d.name;
+      var m=document.createElement("small");m.textContent=d.error?"Failed":d.loading?"Reading…":Math.round(d.text.length/1000)+"k chars";
+      var x=document.createElement("button");x.textContent="×";x.setAttribute("aria-label","Remove "+d.name);
+      x.onclick=function(){docs.splice(i,1);renderDocs()};
+      li.appendChild(s);li.appendChild(m);li.appendChild(x);ul.appendChild(li);
+    });
+  }
+  renderDocs();
+  $("intro").remove();
+  history.forEach(function(m){bubble(m.role==="user"?"user":"ai",m.content)});
+
+  function readBuf(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result)};r.onerror=rej;r.readAsArrayBuffer(f)})}
+  function readText(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result)};r.onerror=rej;r.readAsText(f)})}
+
+  async function extract(f){
+    var ext=f.name.split(".").pop().toLowerCase();
+    if(ext==="txt"||ext==="md")return readText(f);
+    if(ext==="docx"){var r=await mammoth.extractRawText({arrayBuffer:await readBuf(f)});return r.value}
+    if(ext==="pdf"){
+      pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      var pdf=await pdfjsLib.getDocument({data:await readBuf(f)}).promise,out=[];
+      for(var p=1;p<=pdf.numPages;p++){
+        var c=await(await pdf.getPage(p)).getTextContent();
+        out.push("[Page "+p+"]\n"+c.items.map(function(i){return i.str}).join(" "));
+      }
+      return out.join("\n\n");
+    }
+    throw new Error("Unsupported file type");
+  }
+
+  $("up").onclick=function(){$("file").click()};
+  $("file").onchange=async function(e){
+    var files=Array.prototype.slice.call(e.target.files);e.target.value="";
+    for(var f of files){
+      var d={name:f.name,text:"",loading:true};docs.push(d);renderDocs();
+      try{
+        d.text=(await extract(f)).trim();
+        if(!d.text)throw new Error("No readable text");
+        d.loading=false;note("Added "+f.name+(d.text.length>MAX?" (long file — only the first part will be used)":""));
+      }catch(err){d.loading=false;d.error=true;note("Couldn't read "+f.name+(String(err.message||"").indexOf("No readable")>=0?" — it has no selectable text (scanned PDF?).":"."))}
+      renderDocs();
+    }
+  };
+
+  function context(){
+    var per=Math.floor(MAX/Math.max(1,docs.filter(function(d){return !d.error}).length));
+    return docs.filter(function(d){return !d.error&&!d.loading}).map(function(d){
+      return '<document name="'+d.name+'">\n'+d.text.slice(0,per)+"\n</document>";
+    }).join("\n\n");
+  }
+
+  async function ask(){
+    var t=q.value.trim();if(!t||busy)return;
+    if(!sample){note("Chat isn't available in this view.");return}
+    if(!docs.some(function(d){return !d.error&&!d.loading})){note("Upload a document first.");return}
+    busy=true;send.disabled=true;q.value="";q.style.height="auto";
+    var intro=$("intro");if(intro)intro.remove();
+    bubble("user",t);history.push({role:"user",content:t});
+    var out=bubble("ai","Thinking…");
+    var msgs=history.map(function(m){return{role:m.role,content:m.content}});
+    msgs[0]={role:"user",content:"You answer questions about the documents below. Use only their content; if the answer isn't there, say so. Mention the page or document name when you can. Reply in the language the user writes in.\n\n"+context()+"\n\nQuestion: "+history[0].content};
+    try{
+      var r=await sample(msgs,{cache:false,onText:function(x){out.textContent=x.text;feed.scrollTop=feed.scrollHeight}});
+      out.textContent=r.text;history.push({role:"assistant",content:r.text});
+    }catch(err){
+      history.pop();out.className="msg sys";
+      out.textContent=err&&err.code==="not_granted"?"Permission was declined, so Claude can't answer here.":err&&err.code==="rate_limited"?"Too many requests — wait a moment and try again.":"Something went wrong. Try again.";
+    }
+    busy=false;send.disabled=false;q.focus();
+  }
+  send.onclick=ask;
+  q.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask()}});
+  q.addEventListener("input",function(){q.style.height="auto";q.style.height=Math.min(q.scrollHeight,140)+"px"});
+  $("menu").onclick=function(){$("side").classList.toggle("open")};
+  feed.addEventListener("click",function(){$("side").classList.remove("open")});
+})();
+</script>
+</body>
+</html>
