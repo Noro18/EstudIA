@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block title %}StudIA{% endblock %}</title>
 <link rel="stylesheet" href="{% static 'workspace.css' %}">
+<meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 <body>
 <nav class="topbar" aria-label="Primary">

@@ -1,9 +1,12 @@
+import io
 import pytest
 from django.urls import reverse
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from apps.accounts.tests.factories import UserFactory
 from apps.documents.tests.factories import DocumentFactory, NotebookFactory
 from apps.qa.tests.factories import ConversationFactory, MessageFactory
+from apps.documents.services import extract_txt_document
 
 pytestmark = pytest.mark.django_db
 
@@ -109,3 +112,94 @@ def test_login_page_renders(client):
     response = client.get(reverse("login"))
 
     assert response.status_code == 200
+
+
+def test_upload_document_creates_processing_record(logged_in):
+    client, user = logged_in
+    notebook = NotebookFactory(title="Test Notebook", user=user)
+
+    # Create a simple text file
+    txt_content = b"Hello world\nThis is a test document."
+    uploaded_file = SimpleUploadedFile(
+        "test.txt",
+        txt_content,
+        content_type="text/plain",
+    )
+
+    response = client.post(
+        reverse("notebook_upload_document", args=(notebook.pk,)),
+        {"file": uploaded_file},
+    )
+
+    # Should return 200 with document card fragment
+    assert response.status_code == 200
+    assert b"test" in response.content  # title in card
+    assert b"Reading" in response.content  # processing status
+
+    # Document should exist in DB with processing status
+    document = notebook.documents.get(title="test")
+    assert document.status == "processing"
+    assert document.file_type == "txt"
+    assert document.user == user
+    assert document.notebook == notebook
+
+
+def test_upload_document_rejects_unsupported_type(logged_in):
+    client, user = logged_in
+    notebook = NotebookFactory(user=user)
+
+    uploaded_file = SimpleUploadedFile(
+        "test.exe",
+        b"not a document",
+        content_type="application/octet-stream",
+    )
+
+    response = client.post(
+        reverse("notebook_upload_document", args=(notebook.pk,)),
+        {"file": uploaded_file},
+    )
+
+    assert response.status_code == 400
+    assert b"unsupported_type" in response.content
+    assert notebook.documents.count() == 0
+
+
+def test_upload_document_rejects_oversized_file(logged_in, settings):
+    client, user = logged_in
+    notebook = NotebookFactory(user=user)
+    settings.MAX_UPLOAD_SIZE_BYTES = 100  # tiny limit
+
+    uploaded_file = SimpleUploadedFile(
+        "big.pdf",
+        b"x" * 200,
+        content_type="application/pdf",
+    )
+
+    response = client.post(
+        reverse("notebook_upload_document", args=(notebook.pk,)),
+        {"file": uploaded_file},
+    )
+
+    assert response.status_code == 400
+    assert b"file_too_large" in response.content
+    assert notebook.documents.count() == 0
+
+
+def test_extract_txt_document_creates_page_and_marks_document_ready():
+    document = DocumentFactory(
+        status="processing",
+        uploaded_file__data="Primeira linha.\nSegunda linha.".encode("utf-8"),
+        uploaded_file__filename="notes.txt",
+        file_type="txt",
+    )
+
+    extract_txt_document(document)
+
+    document.refresh_from_db()
+    page = document.pages.get(number=1)
+    assert page.text == "Primeira linha.\nSegunda linha."
+    assert page.char_count == len(page.text)
+    assert page.is_scanned is False
+    assert page.ocr_used is False
+    assert document.page_count == 1
+    assert document.status == "ready"

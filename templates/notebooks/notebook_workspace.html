@@ -4,7 +4,13 @@
 <aside class="side" id="side">
   <h1>{{ notebook.title }}</h1>
   <button class="up" id="up" type="button">Upload document</button>
-  <input type="file" id="file" accept=".pdf,.docx,.txt" multiple hidden>
+  <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" multiple hidden
+         hx-trigger="change"
+         hx-post="{% url 'notebook_upload_document' notebook.pk %}"
+         hx-encoding="multipart/form-data"
+         hx-target="#docs"
+         hx-swap="beforeend"
+         hx-on::after-request="this.value=''">
   <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
   <ul class="docs" id="docs">
     {% for doc in notebook.documents.all %}

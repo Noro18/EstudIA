@@ -1,0 +1,17 @@
+<li class="doc{% if document.status == 'failed' %} err{% endif %}"
+    hx-get="{% url 'document_detail' document.pk %}"
+    hx-trigger="every 2s"
+    hx-swap="outerHTML"
+    hx-target="closest li">
+  <a href="{% url 'document_detail' document.pk %}">{{ document.title }}</a>
+  <small>
+    {% if document.status == 'processing' %}
+      Reading…
+    {% elif document.status == 'ready' %}
+      {{ document.page_count }} pages
+    {% else %}
+      Failed
+    {% endif %}
+  </small>
+  <button type="button" aria-label="Remove {{ document.title }}" title="Deleting needs a contract endpoint — coming with a future spec">×</button>
+</li>
