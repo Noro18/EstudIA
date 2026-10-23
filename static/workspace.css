@@ -47,7 +47,8 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
 .msg.ai{align-self:flex-start;max-width:720px;text-align:left}
 .msg.sys{align-self:center;color:var(--muted);font-size:13px;background:none;padding:0}
 .bar{padding:12px max(24px,calc((100% - 720px)/2)) 16px;display:flex;gap:8px;align-items:flex-end}
-.bar textarea{flex:1;resize:none;max-height:140px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;padding:10px 12px}
+.bar textarea{flex:1;resize:none;max-height:140px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;padding:10px 12px;scrollbar-width:none}
+.bar textarea::-webkit-scrollbar{display:none}
 .send{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:10px 18px;font-weight:600}
 .send:disabled{opacity:.5;cursor:not-allowed}
 .menu{display:none;position:absolute;top:10px;left:10px;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:4px 10px}

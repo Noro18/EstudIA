@@ -8,7 +8,12 @@ function initWorkspace(){
     if(feed){feed.addEventListener("click",function(){side.classList.remove("open")})}
   }
   if(q){
-    var autosize=function(){q.style.height="auto";q.style.height=Math.min(q.scrollHeight,140)+"px"};
+    var autosize=function(){
+      q.style.height="auto";
+      var capped=Math.min(q.scrollHeight,140);
+      q.style.height=capped+"px";
+      if(q.scrollHeight>capped){q.scrollTop=q.scrollHeight}
+    };
     q.addEventListener("input",autosize);
     autosize();
   }
