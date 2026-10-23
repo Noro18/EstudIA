@@ -1,6 +1,6 @@
 # SPEC 00 — Django scaffold + data models (all five apps)
 
-Status: **AWAITING SPEC_APPROVED (v2 — apps/ layout added Oct 22)**
+Status: **APPROVED and BUILT — completed Oct 23 (user approval "alright then"; evidence: all 9 models across 9 migrations applied — accounts 0001, documents 0001–0002, qa 0001–0005, llm 0001 —, pgvector extension as first op of `documents/0001_initial.py`, `check` clean, `makemigrations --check --dry-run` clean, full suite 42/42 green; admin registrations landed Oct 23).**
 Date: Oct 22, 2026
 Scope trace: PRD § 3 (must-haves), § 5 (QA flow step 1), § 6 (stack), § 8 (status values) · DB contract: `docs/DATABASE.md` § 1–3 (D1–D8)
 
@@ -71,3 +71,20 @@ None in this spec — no views exist. Admin UI only (model registrations), which
 ## Out of scope (later specs)
 
 Upload view + ingestion worker + chunking (spec 01), LLM adapter (spec 02), ask view + SSE + rewrite (spec 03), template/HTMX shell (spec 04), summary/study-questions (spec 05), quota enforcement in views (spec 05b).
+
+## Build record (Oct 23)
+
+Checklist evidence vs disk reality (verified Oct 23):
+
+| Checklist item | Verdict |
+|---|---|
+| 1. Postgres + pgvector healthy | **Satisfied in effect, documented deviation:** no `docker-compose.yml` exists — the DB runs as a manually created container `studia-pg` (`pgvector/pgvector:pg17`, named volume, host port **5433** ≠ spec's :5432); `.env` `DB_PORT=5433` |
+| 2. Initial migrations | ✅ plus extra `documents/0002` + `qa/0002–0005` from spec 10's D9 re-key |
+| 3. `migrate` → 9 tables + pgvector | ✅ extension created via `CreateExtension("vector")` as first op of `documents/0001_initial.py` (the `pgvector` package ships no migrations) |
+| 4. `manage.py check` | ✅ clean |
+| 5. pytest roundtrip | ✅ 42/42 (unique-constraint violation asserted by model tests) |
+| 6. `.env` gitignored | ✅ (plus `media/` artifacts ignored) |
+
+**Decision A (user, Oct 23):** the missing `docker-compose.yml` + :5433-vs-:5432 port mismatch is accepted as documented deviation. Compose-file creation is deferred to a separate ask-first item in a future cycle — not silently dropped.
+
+Supersessions: the § 2 row for `Conversation` (`document` FK, index `(user, document)`) is superseded by spec 10 / D9 (`notebook` FK required/CASCADE, index `qa_conversation_user_notebook`); spec 10 wins per the contract-hierarchy rule. The § 1 note "adapter module comes in a later spec" for `llm/` remains true. The § 1 note "NO models" for `rag/` was re-verified Oct 23 — the app is still the untouched scaffolding shell (13 lines total).
