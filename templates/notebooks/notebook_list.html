@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}My notebooks — StudIA{% endblock %}
+{% block content %}
+<div class="page">
+  <h1>My notebooks</h1>
+  <form method="post" action="{% url 'notebook_list' %}">
+    {% csrf_token %}
+    <input type="text" name="title" placeholder="New notebook title" required>
+    <button class="up" type="submit">Create notebook</button>
+  </form>
+  <ul class="docs" style="width:100%">
+    {% for notebook in notebooks %}
+      <li><a class="doc" href="{% url 'notebook_workspace' notebook.pk %}" aria-label="Open {{ notebook.title }}">{{ notebook.title }}</a></li>
+    {% empty %}
+      <li class="empty">No notebooks yet — create one above.</li>
+    {% endfor %}
+  </ul>
+  {% if request.user.is_authenticated %}
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <p class="hint">{{ request.user.username }} · <button class="send" type="submit">Log out</button></p>
+    </form>
+  {% endif %}
+</div>
+{% endblock content %}

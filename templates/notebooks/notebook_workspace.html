@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ notebook.title }} — StudIA{% endblock %}
+{% block content %}
+<aside class="side" id="side">
+  <h1>{{ notebook.title }}</h1>
+  <button class="up" id="up" type="button">Upload document</button>
+  <input type="file" id="file" accept=".pdf,.docx,.txt" multiple hidden>
+  <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
+  <ul class="docs" id="docs">
+    {% for doc in notebook.documents.all %}
+      <li class="doc{% if doc.status == 'failed' %} err{% endif %}">
+        <a href="{% url 'document_detail' doc.pk %}">{{ doc.title }}</a>
+        <small>{% if doc.status == 'processing' %}Reading…{% elif doc.status == 'ready' %}{{ doc.page_count }} pages{% else %}Failed{% endif %}</small>
+        <button type="button" aria-label="Remove {{ doc.title }}" title="Deleting needs a contract endpoint — coming with a future spec">×</button>
+      </li>
+    {% empty %}
+      <li class="empty">No documents yet</li>
+    {% endfor %}
+  </ul>
+  {% if conversations %}
+    <p class="hint">Conversations</p>
+    <ul class="docs">
+      {% for conv in conversations %}
+        <li><a class="doc" href="{% url 'conversation_detail' conv.pk %}">Conversation #{{ conv.pk }}</a></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</aside>
+<button class="menu" id="menu" aria-label="Documents">☰ Documents</button>
+<main class="chat">
+  <div class="feed" id="feed" aria-live="polite">
+    {% if conversation %}
+      {% for message in conversation.messages.all %}
+        <div class="msg {% if message.role == 'user' %}user{% else %}ai{% endif %}">{{ message.content }}</div>
+      {% endfor %}
+    {% else %}
+      <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
+    {% endif %}
+  </div>
+  <div class="bar">
+    <textarea id="q" rows="1" placeholder="Ask about your document…"></textarea>
+    <button class="send" id="send" type="button">Send</button>
+  </div>
+</main>
+{% endblock content %}

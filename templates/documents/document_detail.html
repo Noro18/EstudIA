@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Document — StudIA{% endblock %}
+{% block content %}
+<div class="page">
+  <p><a class="chip" href="{% url 'notebook_workspace' document.notebook.pk %}">← {{ document.notebook.title }}</a></p>
+  <h1>{{ document.title }}</h1>
+  <span class="chip">{{ document.status }}</span>
+  {% if document.page_count %}<span class="chip">{{ document.page_count }} pages</span>{% endif %}
+  {% if document.failure_reason %}<span class="chip" data-status="failed">{{ document.failure_reason }}</span>{% endif %}
+  <p class="hint">Uploaded {{ document.created_at }} · {{ document.file_type }}</p>
+  <button class="up" type="button" title="Generation arrives with spec 05">Summary</button>
+  <button class="up" type="button" title="Generation arrives with spec 05">Study questions</button>
+</div>
+{% endblock content %}
