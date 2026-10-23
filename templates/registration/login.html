@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Log in — StudIA{% endblock %}
+{% block content %}
+<div class="page">
+  <h1>StudIA</h1>
+  <form method="post" action="{% url 'login' %}">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <input type="text" name="{{ form.username.html_name }}" placeholder="Username" autofocus required>
+    <input type="password" name="{{ form.password.html_name }}" placeholder="Password" required>
+    <button class="up" type="submit">Log in</button>
+  </form>
+  <p class="hint">Your account is created by the team (admin) for now.</p>
+</div>
+{% endblock content %}
