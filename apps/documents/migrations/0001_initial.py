@@ -6,6 +6,7 @@ import django.db.models.deletion
 import pgvector.django.indexes
 import pgvector.django.vector
 from django.conf import settings
+from django.contrib.postgres.operations import CreateExtension
 from django.db import migrations, models
 
 
@@ -18,6 +19,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        CreateExtension("vector"),
         migrations.CreateModel(
             name='Document',
             fields=[
