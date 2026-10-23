@@ -5,6 +5,25 @@ from django.db import models
 from pgvector.django import HnswIndex, VectorField
 
 
+class Notebook(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="notebooks",
+    )
+    title = models.CharField(max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "-created_at"], name="documents_nb_user_created"),
+        ]
+
+    def __str__(self):
+        return f"Notebook #{self.pk} {self.title}"
+
+
 class Document(models.Model):
     class Status(models.TextChoices):
         PROCESSING = "processing"
@@ -16,6 +35,11 @@ class Document(models.Model):
         DOCX = "docx"
         TXT = "txt"
 
+    notebook = models.ForeignKey(
+        Notebook,
+        on_delete=models.CASCADE,
+        related_name="documents",
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
