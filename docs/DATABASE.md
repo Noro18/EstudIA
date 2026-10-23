@@ -10,6 +10,12 @@ App layout follows the approved structure (apps under the `apps/` package, EC-Ba
 
 Approved **Oct 22 by the user**: D1–D8, plus the nine audit decisions (excerpt 280 chars, conversation-row locking, upload-validate-first, `supported` = validated-citations rule, traceback handling, HNSW defaults, local embeddings exempt from quota, the two § 5 exclusions). Future changes to any of these require a new user decision.
 
+**Oct 23 — D9 added** (supersedes the original "no multi-document chat" scope): the user decided chats must cover several documents at once. `.opencode/specs/10_NOTEBOOK_MULTI_DOC_CHAT.md` is the approval artifact.
+
+| # | Decision | Value | Reason |
+|---|---|---|---|
+| D9 | Notebook container — multi-document chat | **User ──< Notebook ──< Document; `Conversation` re-keyed `document` → `notebook`.** Each conversation answers over the chunks of **all** documents in its notebook. Per-document summaries (D6), study questions, chunk/page model all unchanged; retrieval filter becomes notebook-scoped (lands with the rag/ask spec). User words: "i want one conversation covering several documents at once, so i can like ask a question and it checks the documents i uploaded as answers" | NotebookLM paradigm the PRD was built on; the chunk-anchored `MessageSource` citation design survives the re-key unchanged — only the conversation's *parent* moves |
+
 | # | Decision | Value | Reason |
 |---|---|---|---|
 | D1 | Page table | **Keep** | OCR detection, re-chunking without re-OCR, citation sanity (PRD § 5 step 2) |
@@ -28,17 +34,18 @@ Approved **Oct 22 by the user**: D1–D8, plus the nine audit decisions (excerpt
 ```text
 User (Django auth) ──1:1──> Profile
       │
-      └─owns─> Document ──1:N──> Page           (extracted text per page)
-      │             │    └─1:N──> Chunk         (RAG atom: text + vector + tsvector)
-      │             │    └─sum──> [columns]     (cached summary)
-      │             │    └─1:N──> StudyQuestion (cached generated Q&A)
+      └─owns─> Notebook ──1:N──> Document ──1:N──> Page           (extracted text per page)
+      │             │         │    └─1:N──> Chunk         (RAG atom: text + vector + tsvector)
+      │             │         │    └─sum──> [columns]     (cached summary)
+      │             │         │    └─1:N──> StudyQuestion (cached generated Q&A)
+      │             │         └─(chunks of every document furnished the notebook's chats)
       │             └─1:N──> Conversation ──1:N──> Message ──1:N──> MessageSource ──N:1──> Chunk
       └─fuels─> UsageRecord                    (cost/quota ledger, one row per LLM call)
 ```
 
 Rules enforced by shape:
 
-- A **Conversation belongs to exactly one Document** (no multi-document chat — PRD scope; § 8 `ask` takes an optional `conversation_id`).
+- A **Conversation belongs to exactly one Notebook** (D9 — supersedes the original one-document scope): every ask retrieves over the chunks of **all documents in that notebook**; the notebook is the knowledge workspace. Deleting a notebook deletes its documents *and* its conversations; deleting a single document touches neither the conversations nor (thanks to `MessageSource.chunk` PROTECT) its already-written citations.
 - **Citations are never free text**: the UI reads `MessageSource` rows only; the model's chunk numbers are validated against supplied chunks before any row is written (PRD § 5 step 8).
 - **Every LLM call = one `UsageRecord` row.** Quota checking is `COUNT(UsageRecord WHERE user=today)` — no counters, no race conditions beyond the count being eventually consistent.
 
@@ -46,14 +53,27 @@ Rules enforced by shape:
 
 ## 3. Tables in detail
 
+### `documents.Notebook` (D9)
+
+The user's study workspace: one notebook groups documents that belong together, and its conversations draw on **all** of them.
+
+| Field | Type | Notes |
+|---|---|---|
+| `user` | FK User, `PROTECT` | ownership re-checked on every list/ask |
+| `title` | CharField(300) | human-readable (e.g. "Semester 6") |
+| `created_at`, `updated_at` | auto timestamps | |
+
+Indexes: `(user, -created_at)` for the notebook list — `documents_nb_user_created`.
+
 ### `documents.Document`
 
 One uploaded file.
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | BigAuto PK | used in all URLs (`/documents/{id}/`) |
-| `user` | FK User, `PROTECT` | per-user isolation (PRD § 4 B; listing is per-user) |
+| `id` | BigAuto PK | used in per-document endpoints (URL keys re-key with spec 04) |
+| `notebook` | FK Notebook, CASCADE | **required** (D9): every upload happens inside a notebook; deleting the notebook deletes its documents |
+| `user` | FK User, `PROTECT` | per-user isolation (PRD § 4 B; listing is per-user). **Mirrors `notebook.user`**: two ownership paths, kept equal at creation (factories/service code enforce this — audit-friendly redundancy, so document endpoints never need a join to check owner) |
 | `title` | CharField(300) | human-readable (file stem at upload) |
 | `uploaded_file` | FileField(upload_to=`documents/%Y/%m/`) | original bytes preserved |
 | `file_type` | CharField (`pdf`/`docx`/`txt`) | drives the extractor; `unsupported_type` error if not in whitelist |
@@ -104,15 +124,15 @@ Indexes:
 
 ### `qa.Conversation`
 
-One chat session = one document (D5).
+One chat session inside a Notebook (D9): its answers draw on all of the notebook's documents' chunks. History storage discipline unchanged (D5).
 
 | Field | Type | Notes |
 |---|---|---|
-| `document` | FK Document, CASCADE | |
-| `user` | FK User | ownership check on every ask |
+| `notebook` | FK Notebook, CASCADE | deleting the notebook deletes its chats; deleting one *document* does not |
+| `user` | FK User | ownership check on every ask; mirrors `notebook.user`, kept equal at creation |
 | `created_at` | auto | |
 
-Indexes: `(user, document)` for listing a document's conversations.
+Indexes: `(user, notebook)` for listing a notebook's conversations — `qa_conversation_user_notebook`.
 
 ### `qa.Message`
 
@@ -196,7 +216,7 @@ Indexes: `(user, created_at)` — the quota query; `(document,)` for per-demo-do
 ```text
 upload view:  validate FIRST (type in whitelist, size under cap)
                 - violations → error fragments unsupported_type / file_too_large, no row created
-              create Document(status=processing) → enqueue task → return id + status
+              create Document(notebook, status=processing) → enqueue task → return id + status
 worker task:
   1. extract text per page
        - PDF: PyMuPDF text layer
@@ -218,24 +238,29 @@ Failure contract: `Document` rows always transition `processing → ready | fail
 ### 4.2 Ask (player: request; streaming via SSE)
 
 ```text
-POST /documents/{id}/ask/  (question, conversation_id?, stream?)
-  1. resolve Document: user-ownership + status checks first
-       - not ready  → error fragment document_not_ready
-       - failed     → error fragment document_failed
+ask request  (question, conversation_id?, stream?) — exact § 8 endpoint URL re-keys with spec 04
+  1. resolve Notebook + ownership first (D9)
+       - per-document readiness policy when some documents are processing/failed:
+         DRAFT (settles with the rag/ask spec 03): the chat proceeds over the READY
+         documents of the notebook; not-ready ones simply contribute nothing; a chat
+         where NOTHING is ready errors document_not_ready
   2. resolve Conversation:
-       - conversation_id given → fetch (re-validate owner+document) else create new (D5: fresh folder)
-       - lock the Conversation row (`select_for_update`) for the whole request, released
-         after step 7 → all Message/`seq` writes for this conversation are serialized; two
-         concurrent asks can never compute the same next `seq`
+        - conversation_id given → fetch (re-validate owner+notebook) else create new (D5: fresh folder)
+        - lock the Conversation row (`select_for_update`) for the whole request, released
+          after step 7 → all Message/`seq` writes for this conversation are serialized; two
+          concurrent asks can never compute the same next `seq`
   3. rewrite step (only if this conversation already has messages — PRD § 5 step 4):
        - standalone = llm.generate(prompt=REWRITE, history=last 6 Messages, question)  [non-stream]
        - Message(role=user, seq=next, content=question, rewritten_text=standalone)
        - UsageRecord(purpose=rewrite)
        (first question in a conversation: standalone = question, no call, same Message rows)
-  4. hybrid retrieval on `standalone` (rag/ service):
-       - vector: cosine top-k over embedding HNSW (model+dim match check per D2)
-       - keyword: tsquery over chunk.search_vector
-       - rank fusion (RRF default) → top N chunks ordered by relevance
+  4. hybrid retrieval on `standalone` (rag/ service) — scope: chunks whose
+     `document.notebook_id = conversation.notebook_id` (D9), ready documents only:
+        - vector: cosine top-k over embedding HNSW (model+dim match check per D2)
+        - keyword: tsquery over chunk.search_vector
+        - rank fusion (RRF default) → top N chunks ordered by relevance
+        - documents joined live via inner join, so a single page correctly names the
+          source document even though the chat spans many
   5. prompt build (PRD § 5): English instructions, numbered top-N chunks, history+standalone,
        2-3 Tetum few-shot examples; instruction to answer in Tetum markdown and to cite
        only chunk numbers from the numbered list, or to say plainly it is not supported
@@ -264,6 +289,8 @@ Post-condition invariant: for any assistant message, `supported=True ⇒ count(M
 
 ### 4.3 Summary (map–reduce, cached)
 
+Per-document (D6) — **unaffected by the Notebook re-key**: summaries stay scoped to the single uploaded file.
+
 ```text
 POST /documents/{id}/summary/
   - Document.summary_text set (+created_at) → return cached fragment, no LLM call
@@ -272,6 +299,8 @@ POST /documents/{id}/summary/
 ```
 
 ### 4.4 Study questions
+
+Per-document scope — **unaffected by the Notebook re-key** (study mode drills one uploaded file):
 
 ```text
 POST /documents/{id}/study-questions/ body: count
@@ -297,7 +326,7 @@ before every ask / summary / study_questions request:
 
 | Excluded | Why |
 |---|---|
-| Multi-document conversations | PRD optional-scope-out (line 51); Conversation is pinned to one Document |
+| Cross-notebook conversations | D9 drew the line at the notebook: one chat spans one notebook's documents; no chat mixes several notebooks |
 | JSON message blob on Conversation | D5; FK integrity + per-bubble flags win |
 | Per-user document quotas (separate table) | RNF07 asks usage limits, not storage limits; revisit only if the PRD grows |
 | Separate Summary/LLMLog tables | D6 + single-lens UsageRecord |
