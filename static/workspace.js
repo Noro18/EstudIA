@@ -7,6 +7,17 @@ function initWorkspace(){
   var menu=document.getElementById("menu");
   var feed=document.getElementById("feed");
   var q=document.getElementById("q");
+  var conversationId=document.getElementById("conversation-id");
+  document.body.addEventListener("htmx:afterSwap",function(event){
+    if(event.target.id!=="feed")return;
+    var bubble=event.target.lastElementChild;
+    if(bubble&&bubble.dataset.conversationId&&conversationId){
+      conversationId.value=bubble.dataset.conversationId;
+    }
+    var intro=document.getElementById("intro");
+    if(intro)intro.remove();
+    if(q){q.value="";q.style.height="auto";q.focus()}
+  });
   if(menu&&side){
     menu.onclick=function(){side.classList.toggle("open")};
     if(feed){feed.addEventListener("click",function(){side.classList.remove("open")})}

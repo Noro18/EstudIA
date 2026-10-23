@@ -47,3 +47,22 @@ def test_messages_render_in_seq_order(logged_in):
 
     html = response.content
     assert html.index(b"first question bubble") < html.index(b"second answer bubble")
+
+
+def test_ask_creates_conversation_and_user_message(logged_in):
+    client, user = logged_in
+    notebook = NotebookFactory(user=user)
+
+    response = client.post(
+        reverse("notebook_ask", args=(notebook.pk,)),
+        {"question": "Saida mak edukasaun?"},
+    )
+
+    assert response.status_code == 200
+    conversation = notebook.conversations.get(user=user)
+    message = conversation.messages.get(seq=1)
+    assert message.role == "user"
+    assert message.content == "Saida mak edukasaun?"
+    assert message.supported is None
+    assert b"Saida mak edukasaun?" in response.content
+    assert f'data-conversation-id="{conversation.pk}"'.encode() in response.content

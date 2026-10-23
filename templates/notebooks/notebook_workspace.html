@@ -39,9 +39,13 @@
       <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
     {% endif %}
   </div>
-  <div class="bar">
-    <textarea id="q" rows="1" placeholder="Ask about your document…"></textarea>
-    <button class="send" id="send" type="button">Send</button>
-  </div>
+  <form class="bar" id="ask-form" method="post"
+        hx-post="{% url 'notebook_ask' notebook.pk %}"
+        hx-target="#feed"
+        hx-swap="beforeend">
+    <input type="hidden" id="conversation-id" name="conversation_id" value="{% if conversation %}{{ conversation.pk }}{% endif %}">
+    <textarea id="q" name="question" rows="1" placeholder="Ask about your document…"></textarea>
+    <button class="send" id="send" type="submit">Send</button>
+  </form>
 </main>
 {% endblock content %}
