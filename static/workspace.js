@@ -1,4 +1,8 @@
 function initWorkspace(){
+  document.body.addEventListener("htmx:configRequest",function(event){
+    var csrf=document.querySelector('meta[name="csrf-token"]');
+    if(csrf){event.detail.headers["X-CSRFToken"]=csrf.content}
+  });
   var side=document.getElementById("side");
   var menu=document.getElementById("menu");
   var feed=document.getElementById("feed");
@@ -38,6 +42,11 @@ function initWorkspace(){
     plus.onclick=function(){said.showModal()};
     said.addEventListener("click",function(e){if(e.target===said)said.close()});
     window.addEventListener("keydown",function(e){if(e.key==="Escape")said.close()});
+  }
+  var up=document.getElementById("up");
+  var file=document.getElementById("file");
+  if(up&&file){
+    up.onclick=function(){file.click()};
   }
 }
 document.addEventListener("DOMContentLoaded",initWorkspace);

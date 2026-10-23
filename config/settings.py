@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.postgres",
+    "django_q",
     "apps.accounts",
     "apps.documents",
     "apps.qa",
@@ -88,9 +89,25 @@ DEFAULT_DAILY_QUESTION_LIMIT = int(os.environ.get("DEFAULT_DAILY_QUESTION_LIMIT"
 HISTORY_TOKEN_BUDGET = int(os.environ.get("HISTORY_TOKEN_BUDGET", "2500"))
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "aisingapore/SEA-LION-ModernBERT-Embedding-300M")
 EMBEDDING_DIM = int(os.environ.get("EMBEDDING_DIM", "1024"))
+LOG_EMBEDDING_VECTORS = os.environ.get("LOG_EMBEDDING_VECTORS", "0") == "1"
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.8-flash")
 LLM_FALLBACK_PROVIDER = os.environ.get("LLM_FALLBACK_PROVIDER", "")
 LLM_FALLBACK_MODEL = os.environ.get("LLM_FALLBACK_MODEL", "")
 MAX_UPLOAD_SIZE_BYTES = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", str(20 * 1024 * 1024)))
+
+Q_CLUSTER = {
+    "name": "studia",
+    "workers": int(os.environ.get("Q_CLUSTER_WORKERS", "2")),
+    "timeout": int(os.environ.get("Q_CLUSTER_TIMEOUT", "900")),
+    "retry": int(os.environ.get("Q_CLUSTER_RETRY", "930")),
+    "orm": "default",
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {"apps.documents": {"handlers": ["console"], "level": "INFO", "propagate": False}},
+}
