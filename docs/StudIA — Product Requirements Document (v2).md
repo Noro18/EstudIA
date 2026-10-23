@@ -8,14 +8,14 @@
 - **Model bake-off.** Section 7 defines how we choose the model with evidence instead of opinion.
 - **Cost and sustainability plan.** Section 9 answers the judges' likely questions: how would you run this later, and who pays for the API?
 - **Documents in any common local language.** Source documents may be in Tetum, Portuguese, English, or Indonesian. Answers are always in Tetum.
-- **Re-prioritized features.** Summaries and study questions are must-have. Multi-document chat is out of scope.
+- **Re-prioritized features.** Summaries and study questions are must-have. Multi-document chat was out of scope in this v2 draft — **superseded Oct 23:** Notebooks now make multi-document chat core (user decision, § 14).
 - **Retrieval hardening.** Hybrid search by default, OCR for scanned PDFs, and query rewriting for follow-up questions.
 - **Stronger API contract.** Ingestion status, streaming answers, conversations, and a standard error format.
 - **Dates fixed.** Day 1 is October 19, Day 14 is November 1, and November 2 is a buffer day.
 
 ## 2. Project overview
 
-StudIA is an AI study assistant for students in Timor-Leste. A user uploads a document, asks questions about it, and receives answers in Tetum with verifiable page-level citations. StudIA can also summarize the document and generate study questions.
+StudIA is an AI study assistant for students in Timor-Leste. A user uploads documents into a notebook — the way Google NotebookLM organizes sources — asks questions that draw on everything in that notebook, and receives answers in Tetum with verifiable page-level citations that name the document each passage came from. StudIA can also summarize individual documents and generate study questions from them.
 
 Inspired by Google NotebookLM, StudIA's differentiator is being Tetum-first: explaining course materials, including those written in Portuguese, English, or Indonesian, in the language students think in.
 
@@ -27,13 +27,13 @@ StudIA does not train its own language model. It calls a hosted LLM API for gene
 
 **Must have**
 
-1. PDF upload with text extraction, page tracking, and clear handling of scanned (image-only) PDFs.
-2. Question answering grounded in the document, answered in Tetum.
+1. Notebook workspaces: PDF upload into a named notebook, with text extraction, page tracking, and clear handling of scanned (image-only) PDFs.
+2. Question answering grounded in the notebook's documents, answered in Tetum.
 3. Source citations (page number and excerpt) generated from retrieved chunks, never invented by the model.
 4. Document summary in Tetum.
 5. Study questions (practice questions with answers) generated from the document.
 6. Follow-up questions within a conversation.
-7. Graceful 'not found in the document' answers.
+7. Graceful 'not found in the documents' answers.
 8. Responsive web UI with loading, streaming, and error states.
 9. End-to-end testing on real documents.
 
@@ -48,7 +48,7 @@ StudIA does not train its own language model. It calls a hosted LLM API for gene
 **Optional**
 
 1. Multiple-choice quiz mode with scoring.
-2. Multi-document conversations.
+2. ~~Multi-document conversations~~ — **moved into Must-have scope on Oct 23** via Notebooks (§ 14); see the supersede note in § 1.
 3. Audio summaries.
 4. Portuguese or Indonesian user interface.
 
@@ -125,7 +125,7 @@ StudIA uses Retrieval-Augmented Generation (RAG) with a hosted LLM.
 Frontend (Django templates + HTMX)
     |  HTML fragments + streaming (SSE)
 Backend (plain Django views)
-    |-- PostgreSQL + pgvector: users, documents, chunks, conversations, usage
+    |-- PostgreSQL + pgvector: users, notebooks, documents, chunks, conversations, usage
     |-- Ingestion worker: PDF -> text (OCR if scanned) -> chunks -> embeddings + keyword index
     |-- Retrieval: hybrid (vector + keyword) -> top passages with page numbers
     '-- LLM adapter: Provider A (primary) / Provider B (fallback)
@@ -133,11 +133,11 @@ Backend (plain Django views)
 
 ### Question-answering flow
 
-1. The user uploads a document. The backend stores it and creates a record with status 'processing'.
+1. The user creates a notebook (or opens one) and uploads a document into it. The backend stores it as the notebook's document with status 'processing'.
 2. The worker extracts text and page numbers (OCR if needed), chunks it, and builds the vector and keyword indexes. The status becomes 'ready'.
-3. The user asks a question in Tetum.
+3. The user asks a question in Tetum inside a notebook conversation.
 4. For follow-ups, the LLM first rewrites the question into a standalone question using the conversation history.
-5. Hybrid retrieval returns the most relevant chunks with page numbers.
+5. Hybrid retrieval returns the most relevant chunks — across all the notebook's ready documents — with page numbers and the document each chunk belongs to.
 6. The backend sends the question and numbered chunks to the LLM.
 7. The model answers in Tetum and lists the chunk numbers it used.
 8. The backend validates that those chunk numbers were actually supplied, then attaches the stored document name, page, and excerpt. Citations always come from stored metadata.
@@ -210,21 +210,24 @@ Agreed on Day 1 (JSON form) and **re-scoped on Oct 21** to HTML-over-the-wire af
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /documents/` | Upload a document. Returns id and status 'processing' (rendered fragment / redirect). |
-| `GET /documents/` | List the user's documents (HTML fragment or page). |
-| `GET /documents/{id}/` | Metadata, status (processing, ready, failed), page count, failure reason (for example scanned\_no\_text). |
+| `POST /notebooks/` | Create a notebook. Returns id + rendered fragment. |
+| `GET /notebooks/` | List the user's notebooks (HTML fragment or page). |
+| `GET /notebooks/{id}/` | Notebook detail: its documents (with processing status) + its conversations (page). |
+| `POST /notebooks/{id}/documents/` | Upload a document into the notebook. Returns id and status 'processing' (rendered fragment / redirect). |
+| `GET /documents/{id}/` | Document metadata, status (processing, ready, failed), page count, failure reason (for example scanned\_no\_text). |
 | `GET /documents/{id}/sources/` | Document metadata and available source information. |
-| `POST /documents/{id}/ask/` | Ask a question. Optional conversation\_id; creates a conversation if omitted. Returns a rendered answer partial, or an SSE stream when `stream=true`. |
-| `POST /documents/{id}/summary/` | Tetum summary with page references (cached), rendered partial. |
-| `POST /documents/{id}/study-questions/` | Study questions with answers and page references. Body: count. |
+| `POST /notebooks/{id}/ask/` | Ask a question across the notebook's documents. Optional conversation\_id; creates a notebook conversation if omitted. Returns a rendered answer partial, or an SSE stream when `stream=true`. |
+| `GET /conversations/{id}/` | Conversation history: messages with sources, for reopening a chat. |
+| `POST /documents/{id}/summary/` | Tetum summary with page references (cached), rendered partial — per-document, unaffected by Notebooks. |
+| `POST /documents/{id}/study-questions/` | Study questions with answers and page references — per-document, unaffected by Notebooks. Body: count. |
 
 **Ask request fields:** question (required), conversation\_id (optional), stream (optional boolean).
 
-**Ask response (conceptual data, regardless of rendering):** answer, language (always 'tet'), supported (boolean), conversation\_id, sources (list of chunk\_id, document, page, excerpt). Over SSE: the prompt asks for markdown; each `message` event carries the **whole answer-so-far re-rendered from markdown to HTML** (escaped — no raw HTML from the model), so bolding and bullets appear live; the client swaps with `innerHTML` (replace, not append). The final event carries/renders supported, conversation\_id, and the sources list.
+**Ask response (conceptual data, regardless of rendering):** answer, language (always 'tet'), supported (boolean), conversation\_id, sources (list of chunk\_id, **document, page, excerpt — sources may span several documents of the notebook**). Over SSE: the prompt asks for markdown; each `message` event carries the **whole answer-so-far re-rendered from markdown to HTML** (escaped — no raw HTML from the model), so bolding and bullets appear live; the client swaps with `innerHTML` (replace, not append). The final event carries/renders supported, conversation\_id, and the sources list.
 
 Example question: *Saida mak ideia prinsipál husi dokumentu ne'e?*
 
-**Error format:** the same six codes (`document_not_ready`, `document_failed`, `unsupported_type`, `file_too_large`, `rate_limited`, `llm_unavailable`) rendered as an error fragment showing the message; the code is embedded (e.g. as a `data-error-code` attribute) so tests and the harness can assert on it.
+**Error format:** the same six codes (`document_not_ready`, `document_failed`, `unsupported_type`, `file_too_large`, `rate_limited`, `llm_unavailable`) rendered as an error fragment showing the message; the code is embedded (e.g. as a `data-error-code` attribute) so tests and the harness can assert on it. With Notebooks, `document_not_ready` fires when **nothing in the notebook is ready yet**; ready documents answer while others are still processing.
 
 ## 9. Cost, sustainability, and the judges' questions
 
@@ -352,6 +355,7 @@ Team members have other commitments, so keep ownership independent, hold a short
 
 | Decision | Owner | Due |
 | --- | --- | --- |
+| **Notebook re-scope: conversations cover several documents at once — DECIDED Oct 23 by the user** (artifact: `.opencode/specs/10_NOTEBOOK_MULTI_DOC_CHAT.md`; data contract: `docs/DATABASE.md` § 1 D9). § 8 endpoint table re-keyed Oct 23; exact URL confirmation rides with spec 04. | User/Team | ~~TBD~~ done |
 | **Re-assign work areas A-D across the 3 remaining team members (backend and frontend roles are unassigned)** | Team | TBD |
 | Competition rules: is a hosted API allowed, and are there connectivity, offline, or data requirements? | Noro | Oct 19 |
 | Frontend approach — **DECIDED Oct 21: Django templates + HTMX** (team has no React experience; simpler deploy for 3 members) | Noro | ~~Oct 19~~ done |
