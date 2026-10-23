@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.postgres",
+    "django_q",
     "apps.accounts",
     "apps.documents",
     "apps.qa",
@@ -94,3 +95,11 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.8-flash")
 LLM_FALLBACK_PROVIDER = os.environ.get("LLM_FALLBACK_PROVIDER", "")
 LLM_FALLBACK_MODEL = os.environ.get("LLM_FALLBACK_MODEL", "")
 MAX_UPLOAD_SIZE_BYTES = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", str(20 * 1024 * 1024)))
+
+Q_CLUSTER = {
+    "name": "studia",
+    "workers": int(os.environ.get("Q_CLUSTER_WORKERS", "2")),
+    "timeout": int(os.environ.get("Q_CLUSTER_TIMEOUT", "900")),
+    "retry": int(os.environ.get("Q_CLUSTER_RETRY", "930")),
+    "orm": "default",
+}

@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.http import HttpResponseBadRequest
 
 from .models import Document, Notebook
+from .tasks import enqueue_document_ingestion
 
 
 @login_required
@@ -99,7 +100,7 @@ def notebook_upload_document(request, pk):
         status=Document.Status.PROCESSING,
     )
 
-    # TODO: Enqueue ingestion task (django-q2) - will be added in SPEC 01 implementation
+    enqueue_document_ingestion(document.pk)
 
     # Return document card fragment for HTMX swap
     return render(

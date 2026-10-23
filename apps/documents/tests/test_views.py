@@ -185,12 +185,17 @@ def test_upload_document_rejects_oversized_file(logged_in, settings):
     assert notebook.documents.count() == 0
 
 
-def test_extract_txt_document_creates_page_and_marks_document_ready():
+def test_extract_txt_document_creates_page_and_marks_document_ready(monkeypatch):
     document = DocumentFactory(
         status="processing",
         uploaded_file__data="Primeira linha.\nSegunda linha.".encode("utf-8"),
         uploaded_file__filename="notes.txt",
         file_type="txt",
+    )
+
+    monkeypatch.setattr(
+        "apps.documents.services._embed_texts",
+        lambda texts: [[0.1] * 1024 for _ in texts],
     )
 
     extract_txt_document(document)
