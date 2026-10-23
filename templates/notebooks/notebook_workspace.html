@@ -14,11 +14,7 @@
   <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
   <ul class="docs" id="docs">
     {% for doc in notebook.documents.all %}
-      <li class="doc{% if doc.status == 'failed' %} err{% endif %}">
-        <a href="{% url 'document_detail' doc.pk %}">{{ doc.title }}</a>
-        <small>{% if doc.status == 'processing' %}Reading…{% elif doc.status == 'ready' %}{{ doc.page_count }} pages{% else %}Failed{% endif %}</small>
-        <button type="button" aria-label="Remove {{ doc.title }}" title="Deleting needs a contract endpoint — coming with a future spec">×</button>
-      </li>
+      {% include "documents/_document_card.html" with document=doc notebook=notebook %}
     {% empty %}
       <li class="empty">No documents yet</li>
     {% endfor %}
