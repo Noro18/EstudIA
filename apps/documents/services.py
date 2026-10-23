@@ -137,6 +137,7 @@ def ingest_document(document, embedder=None):
     """Extract, chunk, embed, and persist one document's ingestion result."""
     embedder = embedder or _embed_texts
     started_at = time.perf_counter()
+    logger.info("Ingestion started: document=%s type=%s", document.pk, document.file_type)
     document.status = Document.Status.PROCESSING
     document.failure_reason = None
     document.save(update_fields=["status", "failure_reason", "updated_at"])
@@ -144,6 +145,7 @@ def ingest_document(document, embedder=None):
     try:
         with transaction.atomic():
             extracted_pages = _read_document_pages(document)
+            logger.info("Text extracted: document=%s pages=%s", document.pk, len(extracted_pages))
             Page.objects.filter(document=document).delete()
             Chunk.objects.filter(document=document).delete()
 
@@ -166,12 +168,25 @@ def ingest_document(document, embedder=None):
                     chunk_payload.append((number, chunk_text))
             if not chunk_payload:
                 raise IngestionError("extraction_failed", "The document has no extractable text.")
+            logger.info("Text chunked: document=%s chunks=%s", document.pk, len(chunk_payload))
 
+            logger.info("Embedding started: document=%s chunks=%s", document.pk, len(chunk_payload))
             vectors = embedder([text for _, text in chunk_payload])
             if len(vectors) != len(chunk_payload) or any(
                 len(vector) != settings.EMBEDDING_DIM for vector in vectors
             ):
                 raise IngestionError("embedding_failed", "The embedding dimension does not match the configured model.")
+            if settings.LOG_EMBEDDING_VECTORS:
+                logger.info("Embedding vectors: document=%s vectors=%s", document.pk, vectors)
+            else:
+                preview = [round(float(value), 6) for value in vectors[0][:8]]
+                logger.info(
+                    "Embedding vector preview: document=%s first_vector=%s dimensions=%s",
+                    document.pk,
+                    preview,
+                    settings.EMBEDDING_DIM,
+                )
+            logger.info("Embedding complete: document=%s dimensions=%s", document.pk, settings.EMBEDDING_DIM)
 
             chunks = [
                 Chunk(
@@ -212,6 +227,13 @@ def ingest_document(document, embedder=None):
                 completion_tokens=0,
                 latency_ms=int((time.perf_counter() - started_at) * 1000),
                 cost_usd=0,
+            )
+            logger.info(
+                "Ingestion ready: document=%s pages=%s chunks=%s elapsed_ms=%s",
+                document.pk,
+                len(page_rows),
+                len(chunks),
+                int((time.perf_counter() - started_at) * 1000),
             )
     except IngestionError as exc:
         _mark_failed(document, exc.reason)
