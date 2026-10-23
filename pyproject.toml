@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "django>=6.1.2",
     "django-q2>=1.11.1",
+    "factory-boy>=3.3.3",
     "httpx>=0.28.1",
     "mistune>=3.4.0",
     "pgvector>=0.5.1",
