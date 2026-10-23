@@ -1,0 +1,38 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}StudIA{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'workspace.css' %}">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <span class="brand">StudIA</span>
+  {% if notebook %}
+    <div class="nb-menu">
+      <button type="button" class="nb-select-btn" id="nb-select" aria-haspopup="true" aria-expanded="false">
+        {{ notebook.title }} <span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <ul class="nb-panel" id="nb-panel">
+        {% for nb in notebooks %}
+          <li><a href="{% url 'notebook_workspace' nb.pk %}"{% if nb.pk == notebook.pk %} aria-current="page"{% endif %}>{{ nb.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    <button id="nb-plus" class="nb-plus" type="button" title="New notebook" aria-label="New notebook">+</button>
+    <dialog id="nb-new-dialog" class="nb-dialog">
+      <form method="post" action="{% url 'notebook_list' %}">
+        {% csrf_token %}
+        <label class="hint" for="nb-new-title">New notebook</label>
+        <input id="nb-new-title" type="text" name="title" placeholder="Notebook title" required>
+        <button class="up" type="submit">Create</button>
+      </form>
+    </dialog>
+  {% endif %}
+</nav>
+{% block content %}{% endblock %}
+<script src="{% static 'htmx.min.js' %}"></script>
+<script src="{% static 'workspace.js' %}"></script>
+</body>
+</html>
