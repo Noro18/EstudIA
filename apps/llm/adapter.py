@@ -32,6 +32,7 @@ class GeminiAdapter:
     def __init__(self, api_key=None, model=None):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.model = model or settings.LLM_MODEL
+        self.retries = settings.LLM_RETRIES
 
     def generate(self, messages, stream=False):
         if not self.api_key:
@@ -49,11 +50,16 @@ class GeminiAdapter:
     def _complete(self, messages):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         started_at = time.perf_counter()
-        try:
-            response = httpx.post(url, headers=self._headers(), json=self._body(messages), timeout=60)
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise LLMUnavailable("Gemini did not return an answer.") from exc
+        for attempt in range(self.retries + 1):
+            try:
+                response = httpx.post(url, headers=self._headers(), json=self._body(messages), timeout=60)
+                response.raise_for_status()
+                break
+            except httpx.HTTPError as exc:
+                if attempt == self.retries:
+                    raise LLMUnavailable("Gemini did not return an answer.") from exc
+                logger.warning("Gemini request failed; retrying attempt=%s", attempt + 1)
+                time.sleep(2**attempt)
         payload = response.json()
         usage = _usage_from_payload(payload)
         usage["latency_ms"] = int((time.perf_counter() - started_at) * 1000)
@@ -64,22 +70,27 @@ class GeminiAdapter:
     def _stream(self, messages):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:streamGenerateContent?alt=sse"
         started_at = time.perf_counter()
-        try:
-            with httpx.stream("POST", url, headers=self._headers(), json=self._body(messages), timeout=60) as response:
-                response.raise_for_status()
-                for line in response.iter_lines():
-                    if not line or not line.startswith("data:"):
-                        continue
-                    payload = json.loads(line.removeprefix("data:").strip())
-                    usage = _usage_from_payload(payload)
-                    text = _text_from_payload(payload)
-                    if text:
-                        yield {"text": text, "usage": usage}
-                    if usage["prompt_tokens"] or usage["completion_tokens"]:
-                        yield {"text": "", "usage": usage}
-        except (httpx.HTTPError, json.JSONDecodeError) as exc:
-            logger.exception("Gemini streaming failed")
-            raise LLMUnavailable("Gemini streaming failed.") from exc
+        for attempt in range(self.retries + 1):
+            try:
+                with httpx.stream("POST", url, headers=self._headers(), json=self._body(messages), timeout=60) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        payload = json.loads(line.removeprefix("data:").strip())
+                        usage = _usage_from_payload(payload)
+                        text = _text_from_payload(payload)
+                        if text:
+                            yield {"text": text, "usage": usage}
+                        if usage["prompt_tokens"] or usage["completion_tokens"]:
+                            yield {"text": "", "usage": usage}
+                break
+            except (httpx.HTTPError, json.JSONDecodeError) as exc:
+                if attempt == self.retries:
+                    logger.exception("Gemini streaming failed")
+                    raise LLMUnavailable("Gemini streaming failed.") from exc
+                logger.warning("Gemini streaming failed; retrying attempt=%s", attempt + 1)
+                time.sleep(2**attempt)
         yield {
             "text": "",
             "usage": {
