@@ -1,4 +1,7 @@
 import json
+import logging
+import queue
+import threading
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -13,6 +16,12 @@ from apps.llm.models import UsageRecord
 from .models import Conversation, Message
 
 render_markdown = mistune.create_markdown(escape=True)
+logger = logging.getLogger(__name__)
+
+# While the model thinks, bytes must still flow to the browser, or proxies
+# and browsers kill the idle SSE connection (the "Network Error" symptom).
+HEARTBEAT_SECONDS = 15
+KEEP_ALIVE = ": keep-alive\n\n"
 
 
 @login_required
@@ -84,21 +93,53 @@ def _sse(event, payload):
     return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
 
 
+def _run_llm(adapter, messages, out):
+    """Consume the adapter generator in a worker thread, forwarding every part.
+
+    Running the (possibly hung) SDK call off the request thread lets the view
+    emit heartbeats while nothing arrives, so the SSE connection never idles.
+    """
+    try:
+        for part in adapter.generate(messages, stream=True):
+            out.put(part)
+    except LLMUnavailable as exc:
+        out.put(exc)
+    except Exception as exc:
+        logger.exception("LLM streaming raised an unexpected error")
+        out.put(LLMUnavailable(f"Unexpected LLM failure: {exc}"))
+    finally:
+        out.put(None)  # sentinel: no more items will ever arrive
+
+
 def _stream_answer(user, conversation, user_message):
     def events():
         yield _sse("user", {"conversation_id": conversation.pk, "text": user_message.content})
         adapter = GeminiAdapter()
         answer_parts = []
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "latency_ms": 0}
-        try:
-            for part in adapter.generate(_gemini_messages(conversation), stream=True):
-                answer_parts.append(part["text"])
-                usage.update({key: value for key, value in part["usage"].items() if value})
-                if part["text"]:
-                    yield _sse("message", {"html": render_markdown("".join(answer_parts))})
-        except LLMUnavailable as exc:
-            yield _sse("error", {"message": str(exc)})
-            return
+        out = queue.Queue()
+        worker = threading.Thread(
+            target=_run_llm,
+            args=(adapter, _gemini_messages(conversation), out),
+            daemon=True,
+        )
+        worker.start()
+        while True:
+            try:
+                item = out.get(timeout=HEARTBEAT_SECONDS)
+            except queue.Empty:
+                yield KEEP_ALIVE
+                continue
+            if item is None:
+                break
+            if isinstance(item, LLMUnavailable):
+                yield _sse("error", {"message": str(item), "code": "llm_unavailable"})
+                return
+            answer_parts.append(item["text"])
+            usage.update({key: value for key, value in item["usage"].items() if value})
+            if item["text"]:
+                yield _sse("message", {"html": render_markdown("".join(answer_parts))})
+        worker.join()
 
         answer = "".join(answer_parts)
         next_seq = conversation.messages.order_by("-seq").first().seq + 1
