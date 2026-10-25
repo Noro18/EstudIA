@@ -63,7 +63,8 @@ function initWorkspace(){
                 }else if(eventName==="error"){
                   if(assistant)assistant.classList.remove("message-loading");
                   if(assistant)assistant.textContent=data.message;
-                  else{assistant=document.createElement("div");assistant.className="msg ai";assistant.textContent=data.message;feed.appendChild(assistant)}
+                  else{assistant=document.createElement("div");assistant.className="msg ai err";assistant.textContent=data.message;feed.appendChild(assistant)}
+                  if(assistant)assistant.classList.add("err");
                   send.disabled=false;
                 }
               });
