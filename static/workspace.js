@@ -58,7 +58,7 @@ function initWorkspace(){
                     assistant.classList.remove("message-loading");
                     assistant.textContent="";
                   }
-                  assistant.textContent+=data.text;
+                  assistant.innerHTML=data.html;
                   feed.scrollTop=feed.scrollHeight;
                 }else if(eventName==="error"){
                   if(assistant)assistant.classList.remove("message-loading");

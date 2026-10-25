@@ -5,11 +5,14 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponseBadRequest, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, render
+import mistune
 
 from apps.llm.adapter import GeminiAdapter, LLMUnavailable
 from apps.llm.models import UsageRecord
 
 from .models import Conversation, Message
+
+render_markdown = mistune.create_markdown(escape=True)
 
 
 @login_required
@@ -92,7 +95,7 @@ def _stream_answer(user, conversation, user_message):
                 answer_parts.append(part["text"])
                 usage.update({key: value for key, value in part["usage"].items() if value})
                 if part["text"]:
-                    yield _sse("message", {"text": part["text"]})
+                    yield _sse("message", {"html": render_markdown("".join(answer_parts))})
         except LLMUnavailable as exc:
             yield _sse("error", {"message": str(exc)})
             return
