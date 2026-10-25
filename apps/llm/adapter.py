@@ -1,101 +1,117 @@
-import json
+"""Gemini adapter — the only module that talks to Google's Gemini API (PRD § 7).
+
+Provider and model come from environment variables (GEMINI_API_KEY, LLM_MODEL).
+Every call reports prompt tokens, completion tokens (including hidden thinking
+tokens, which Google bills), latency, provider, and model.
+"""
 import logging
 import time
 
-import httpx
 from django.conf import settings
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
 
 class LLMUnavailable(Exception):
-    pass
+    """Raised when the provider cannot produce an answer after retries."""
 
 
-def _text_from_payload(payload):
-    candidates = payload.get("candidates", [])
-    if not candidates:
-        return ""
-    parts = candidates[0].get("content", {}).get("parts", [])
-    return "".join(part.get("text", "") for part in parts)
+def _make_client(api_key, timeout_seconds):
+    """Build a fast-failing Gemini client.
+
+    The SDK's own retries are disarmed on purpose: the adapter's retry loop
+    (LLM_RETRIES) keeps control, so nothing is ever re-sent after the first
+    text byte (no mid-stream duplication).
+    """
+    return genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=timeout_seconds * 1000,
+            retry_options=types.HttpRetryOptions(attempts=1),
+        ),
+    )
 
 
-def _usage_from_payload(payload):
-    usage = payload.get("usageMetadata", {})
+def _usage_from_metadata(metadata):
+    """Map SDK usage metadata to the adapter usage contract.
+
+    completion_tokens includes thinking tokens because Google bills them:
+    total = prompt + candidates + thoughts.
+    """
+    if metadata is None:
+        return {}
     return {
-        "prompt_tokens": usage.get("promptTokenCount", 0),
-        "completion_tokens": usage.get("candidatesTokenCount", 0),
+        "prompt_tokens": metadata.prompt_token_count or 0,
+        "completion_tokens": (metadata.candidates_token_count or 0)
+        + (metadata.thoughts_token_count or 0),
     }
 
 
 class GeminiAdapter:
-    def __init__(self, api_key=None, model=None):
+    """Answers from the Gemini API behind generate(messages, stream)."""
+
+    def __init__(self, api_key=None, model=None, timeout_seconds=None, retries=None):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.model = model or settings.LLM_MODEL
-        self.retries = settings.LLM_RETRIES
+        self.timeout_seconds = timeout_seconds if timeout_seconds else settings.LLM_TIMEOUT_SECONDS
+        self.retries = retries if retries is not None else settings.LLM_RETRIES
+        self._client = None
 
     def generate(self, messages, stream=False):
         if not self.api_key:
             raise LLMUnavailable("GEMINI_API_KEY is not configured.")
+        client = self._get_client()
         if stream:
-            return self._stream(messages)
-        return self._complete(messages)
+            return self._stream(client, messages)
+        return self._complete(client, messages)
 
-    def _headers(self):
-        return {"x-goog-api-key": self.api_key, "Content-Type": "application/json"}
+    def _get_client(self):
+        if self._client is None:
+            self._client = _make_client(self.api_key, self.timeout_seconds)
+        return self._client
 
-    def _body(self, messages):
-        return {"contents": messages}
-
-    def _complete(self, messages):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+    def _complete(self, client, messages):
         started_at = time.perf_counter()
         for attempt in range(self.retries + 1):
             try:
-                response = httpx.post(url, headers=self._headers(), json=self._body(messages), timeout=60)
-                response.raise_for_status()
-                break
-            except httpx.HTTPError as exc:
+                response = client.models.generate_content(model=self.model, contents=messages)
+                usage = _usage_from_metadata(response.usage_metadata)
+                usage["latency_ms"] = int((time.perf_counter() - started_at) * 1000)
+                usage["provider"] = "gemini"
+                usage["model"] = self.model
+                return {"text": response.text or "", "usage": usage}
+            except Exception as exc:
                 if attempt == self.retries:
-                    raise LLMUnavailable("Gemini did not return an answer.") from exc
-                logger.warning("Gemini request failed; retrying attempt=%s", attempt + 1)
+                    logger.exception("Gemini request failed after %s attempts", attempt + 1)
+                    raise LLMUnavailable(f"Gemini did not return an answer: {exc}") from exc
+                logger.warning("Gemini request failed; retrying attempt=%s (%s)", attempt + 1, exc)
                 time.sleep(2**attempt)
-        payload = response.json()
-        usage = _usage_from_payload(payload)
+        raise LLMUnavailable("Gemini did not return an answer.")  # pragma: no cover
+
+    def _stream(self, client, messages):
+        started_at = time.perf_counter()
+        usage = {}
+        for attempt in range(self.retries + 1):
+            try:
+                # Gemini sends cumulative usage on every event: the last value
+                # is the authoritative total (views keep the last, by contract).
+                for chunk in client.models.generate_content_stream(model=self.model, contents=messages):
+                    usage.update(_usage_from_metadata(chunk.usage_metadata))
+                    if chunk.text:
+                        yield {"text": chunk.text, "usage": dict(usage)}
+                break
+            except Exception as exc:
+                if usage:  # text already delivered to the caller — never re-send
+                    logger.exception("Gemini stream interrupted after a partial answer")
+                    raise LLMUnavailable("Gemini stream was interrupted mid-answer.") from exc
+                if attempt == self.retries:
+                    logger.exception("Gemini streaming failed after %s attempts", attempt + 1)
+                    raise LLMUnavailable(f"Gemini streaming failed: {exc}") from exc
+                logger.warning("Gemini streaming failed; retrying attempt=%s (%s)", attempt + 1, exc)
+                time.sleep(2**attempt)
         usage["latency_ms"] = int((time.perf_counter() - started_at) * 1000)
         usage["provider"] = "gemini"
         usage["model"] = self.model
-        return {"text": _text_from_payload(payload), "usage": usage}
-
-    def _stream(self, messages):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:streamGenerateContent?alt=sse"
-        started_at = time.perf_counter()
-        for attempt in range(self.retries + 1):
-            try:
-                with httpx.stream("POST", url, headers=self._headers(), json=self._body(messages), timeout=60) as response:
-                    response.raise_for_status()
-                    for line in response.iter_lines():
-                        if not line or not line.startswith("data:"):
-                            continue
-                        payload = json.loads(line.removeprefix("data:").strip())
-                        usage = _usage_from_payload(payload)
-                        text = _text_from_payload(payload)
-                        if text:
-                            yield {"text": text, "usage": usage}
-                        if usage["prompt_tokens"] or usage["completion_tokens"]:
-                            yield {"text": "", "usage": usage}
-                break
-            except (httpx.HTTPError, json.JSONDecodeError) as exc:
-                if attempt == self.retries:
-                    logger.exception("Gemini streaming failed")
-                    raise LLMUnavailable("Gemini streaming failed.") from exc
-                logger.warning("Gemini streaming failed; retrying attempt=%s", attempt + 1)
-                time.sleep(2**attempt)
-        yield {
-            "text": "",
-            "usage": {
-                "latency_ms": int((time.perf_counter() - started_at) * 1000),
-                "provider": "gemini",
-                "model": self.model,
-            },
-        }
+        yield {"text": "", "usage": usage}
