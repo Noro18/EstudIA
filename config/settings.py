@@ -93,6 +93,9 @@ LOG_EMBEDDING_VECTORS = os.environ.get("LOG_EMBEDDING_VECTORS", "0") == "1"
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.8-flash")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+LLM_RETRIES = int(os.environ.get("LLM_RETRIES", "2"))
+LLM_TIMEOUT_SECONDS = int(os.environ.get("LLM_TIMEOUT_SECONDS", "45"))
 LLM_FALLBACK_PROVIDER = os.environ.get("LLM_FALLBACK_PROVIDER", "")
 LLM_FALLBACK_MODEL = os.environ.get("LLM_FALLBACK_MODEL", "")
 MAX_UPLOAD_SIZE_BYTES = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", str(20 * 1024 * 1024)))

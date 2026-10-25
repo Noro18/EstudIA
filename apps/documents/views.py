@@ -1,11 +1,30 @@
 import os
+
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect, render
 from django.http import HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.safestring import mark_safe
+import mistune
+
+from apps.qa.models import Message
 
 from .models import Document, Notebook
 from .tasks import enqueue_document_ingestion
+
+render_markdown = mistune.create_markdown(escape=True)
+
+
+def _history_rows(conversation):
+    """Server-rendered chat history; assistant answers come pre-rendered so the
+    workspace looks identical to the live-streamed chat."""
+    rows = []
+    for message in conversation.messages.all():
+        if message.role == Message.Role.ASSISTANT:
+            rows.append({"message": message, "html": mark_safe(render_markdown(message.content))})
+        else:
+            rows.append({"message": message, "html": None})
+    return rows
 
 
 @login_required
@@ -30,6 +49,7 @@ def notebook_workspace(request, pk):
             "notebook": notebook,
             "notebooks": request.user.notebooks.all(),
             "conversation": conversation,
+            "rows": _history_rows(conversation) if conversation else [],
         },
     )
 

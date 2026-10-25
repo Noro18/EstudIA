@@ -32,16 +32,17 @@
 <main class="chat">
   <div class="feed" id="feed" aria-live="polite">
     {% if conversation %}
-      {% for message in conversation.messages.all %}
-        <div class="msg {% if message.role == 'user' %}user{% else %}ai{% endif %}">{{ message.content }}</div>
+      {% for row in rows %}
+        <div class="msg {% if row.message.role == 'user' %}user{% else %}ai{% endif %}">{% if row.html %}{{ row.html }}{% else %}{{ row.message.content }}{% endif %}</div>
       {% endfor %}
     {% else %}
       <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
     {% endif %}
   </div>
-  <div class="bar">
-    <textarea id="q" rows="1" placeholder="Ask about your document…"></textarea>
-    <button class="send" id="send" type="button">Send</button>
-  </div>
+  <form class="bar" id="ask-form" method="post" action="{% url 'notebook_ask' notebook.pk %}">
+    <input type="hidden" id="conversation-id" name="conversation_id" value="{% if conversation %}{{ conversation.pk }}{% endif %}">
+    <textarea id="q" name="question" rows="1" placeholder="Ask about your document…"></textarea>
+    <button class="send" id="send" type="submit">Send</button>
+  </form>
 </main>
 {% endblock content %}

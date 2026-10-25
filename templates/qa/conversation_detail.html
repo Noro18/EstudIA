@@ -4,8 +4,8 @@
 <main class="chat">
   <div class="feed" id="feed" aria-live="polite">
     <div class="msg sys"><a class="chip" href="{% url 'notebook_workspace' conversation.notebook.pk %}">← Conversation #{{ conversation.pk }}</a></div>
-    {% for message in conversation.messages.all %}
-      <div class="msg {% if message.role == 'user' %}user{% else %}ai{% endif %}">{{ message.content }}</div>
+    {% for row in rows %}
+      <div class="msg {% if row.message.role == 'user' %}user{% else %}ai{% endif %}">{% if row.html %}{{ row.html }}{% else %}{{ row.message.content }}{% endif %}</div>
     {% empty %}
       <div class="msg sys" id="intro">No messages yet — ask from the notebook page.</div>
     {% endfor %}
