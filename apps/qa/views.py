@@ -9,6 +9,7 @@ from django.db import transaction
 from django.http import HttpResponseBadRequest, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, render
 import mistune
+from django.utils.safestring import mark_safe
 
 from apps.llm.adapter import GeminiAdapter, LLMUnavailable
 from apps.llm.models import UsageRecord
@@ -27,6 +28,13 @@ KEEP_ALIVE = ": keep-alive\n\n"
 @login_required
 def conversation_detail(request, pk):
     conversation = get_object_or_404(Conversation, pk=pk, user=request.user)
+    rows = []
+    for message in conversation.messages.all():
+        if message.role == Message.Role.ASSISTANT:
+            # Render once, at request time, so the replay looks like the live stream.
+            rows.append({"message": message, "html": mark_safe(render_markdown(message.content))})
+        else:
+            rows.append({"message": message, "html": None})
     return render(
         request,
         "qa/conversation_detail.html",
@@ -34,6 +42,7 @@ def conversation_detail(request, pk):
             "conversation": conversation,
             "notebook": conversation.notebook,
             "notebooks": request.user.notebooks.all(),
+            "rows": rows,
         },
     )
 
