@@ -81,6 +81,15 @@ function initWorkspace(){
         });
       q.value="";q.style.height="auto";
     });
+    // Enter sends the message; Ctrl/Cmd/Shift+Enter keeps the browser's
+    // newline behaviour. preventDefault stops the newline AFTER sending.
+    q.addEventListener("keydown",function(event){
+      if(event.key!=="Enter"||event.isComposing)return;
+      if(event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
+      event.preventDefault();
+      if(askForm.requestSubmit){askForm.requestSubmit()}
+      else{askForm.dispatchEvent(new Event("submit",{cancelable:true}))}
+    });
   }
   document.body.addEventListener("htmx:afterSwap",function(event){
     if(event.target.id!=="feed")return;
