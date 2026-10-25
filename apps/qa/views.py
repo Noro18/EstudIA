@@ -142,7 +142,10 @@ def _stream_answer(user, conversation, user_message):
             if item is None:
                 break
             if isinstance(item, LLMUnavailable):
-                yield _sse("error", {"message": str(item), "code": "llm_unavailable"})
+                yield _sse(
+                    "error",
+                    {"message": str(item), "code": getattr(item, "error_code", "llm_unavailable")},
+                )
                 return
             answer_parts.append(item["text"])
             usage.update({key: value for key, value in item["usage"].items() if value})

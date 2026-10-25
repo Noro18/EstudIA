@@ -2,8 +2,9 @@
 from types import SimpleNamespace
 
 import pytest
+from google.genai import errors as genai_errors
 
-from apps.llm.adapter import GeminiAdapter, LLMUnavailable, _make_client
+from apps.llm.adapter import GeminiAdapter, LLMRateLimited, LLMUnavailable, _make_client
 
 
 def chunk(text, prompt=None, candidates=None, thoughts=None):
@@ -147,3 +148,37 @@ def test_make_client_builds_a_fast_failing_sdk_client():
     client = _make_client("some-key", 45)
 
     assert client.models is not None
+
+
+QUOTA_MESSAGE = (
+    "You exceeded your current quota. * Quota exceeded for metric: "
+    "generativelanguage.googleapis.com/generate_content_free_tier_requests, "
+    "limit: 20, model: gemini-3.6-flash. Please retry in 15h59m6.515044973s."
+)
+
+
+def test_rate_limit_stops_retries_and_reports_a_short_message(swap_client):
+    models = swap_client([genai_errors.ClientError(429, {"error": {"code": 429, "message": QUOTA_MESSAGE}})])
+
+    with pytest.raises(LLMRateLimited) as caught:
+        list(make_adapter(retries=2).generate([{"role": "user", "parts": [{"text": "hi"}]}], stream=True))
+
+    assert "20 questions/day" in str(caught.value)          # real limit, parsed
+    assert "about 15h59m" in str(caught.value)              # real wait, parsed
+    assert caught.value.error_code == "rate_limited"        # PRD § 8 code
+    assert str(caught.value).count("Quota exceeded") == 0   # no raw payload leaks
+    assert models.calls == 1                                # blind retries abandoned
+
+
+def test_rate_limit_in_non_stream_calls_uses_the_same_message(swap_client):
+    swap_client([genai_errors.ClientError(429, {"error": {"code": 429, "message": QUOTA_MESSAGE}})])
+
+    with pytest.raises(LLMRateLimited, match="20 questions/day"):
+        make_adapter().generate([{"role": "user", "parts": [{"text": "hi"}]}], stream=False)
+
+
+def test_rate_limit_without_parseable_details_falls_back_to_a_stable_line(swap_client):
+    swap_client([genai_errors.ClientError(429, {"error": {"code": 429, "message": "quota is gone"}})])
+
+    with pytest.raises(LLMRateLimited, match="try again later"):
+        list(make_adapter().generate([{"role": "user", "parts": [{"text": "hi"}]}], stream=True))
