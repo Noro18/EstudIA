@@ -33,9 +33,7 @@
   <div class="feed" id="feed" aria-live="polite">
     {% if conversation %}
       {% for row in rows %}
-        <div class="msg {% if row.message.role == 'user' %}user{% else %}ai{% endif %}">
-          {% if row.html %}{{ row.html }}{% else %}{{ row.message.content }}{% endif %}
-        </div>
+        <div class="msg {% if row.message.role == 'user' %}user{% else %}ai{% endif %}">{% if row.html %}{{ row.html }}{% else %}{{ row.message.content }}{% endif %}</div>
       {% endfor %}
     {% else %}
       <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
