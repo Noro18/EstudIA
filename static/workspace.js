@@ -52,6 +52,11 @@ function initWorkspace(){
                   spinner.className="message-spinner";
                   spinner.setAttribute("aria-label","Gemini is thinking");
                   assistant.appendChild(spinner);
+                  var status=document.createElement("span");
+                  status.className="thinking-status";
+                  status.setAttribute("role","status");
+                  status.textContent="thinking\u2026";
+                  assistant.appendChild(status);
                   feed.appendChild(assistant);
                 }else if(eventName==="message"&&assistant){
                   if(assistant.classList.contains("message-loading")){

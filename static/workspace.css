@@ -42,6 +42,8 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
 .status-label{display:inline-block}
 .message-loading{display:flex;align-items:center;min-height:24px}
 .message-spinner{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:status-spin .8s linear infinite}
+.thinking-status{margin-left:8px;color:var(--muted);font-size:.85em;animation:thinking-pulse 1.6s ease-in-out infinite}
+@keyframes thinking-pulse{0%,100%{opacity:.55}50%{opacity:1}}
 @keyframes status-spin{to{transform:rotate(360deg)}}
 .doc button{border:0;background:none;color:var(--muted);font-size:16px;padding:0 4px}
 .doc.err{border-color:#d9534f}
