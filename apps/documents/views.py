@@ -128,3 +128,16 @@ def notebook_upload_document(request, pk):
         "documents/_document_card.html",
         {"document": document, "notebook": notebook},
     )
+
+
+@login_required
+def document_retry(request, pk):
+    document = get_object_or_404(Document, pk=pk, user=request.user)
+    if document.status != Document.Status.FAILED:
+        return render(request, "documents/_document_card.html", {"document": document, "notebook": document.notebook})
+
+    document.status = Document.Status.PROCESSING
+    document.failure_reason = None
+    document.save(update_fields=["status", "failure_reason", "updated_at"])
+    enqueue_document_ingestion(document.pk)
+    return render(request, "documents/_document_card.html", {"document": document, "notebook": document.notebook})

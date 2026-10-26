@@ -15,5 +15,10 @@
       <span class="status-label">Failed</span>
     {% endif %}
   </small>
+  <button type="button" class="doc-refresh" hx-get="{% url 'document_detail' document.pk %}" hx-target="closest li" hx-swap="outerHTML" aria-label="Refresh {{ document.title }}" title="Refresh document">⟳</button>
+  {% if document.status == 'failed' %}
+  <button type="button" hx-post="{% url 'document_retry' document.pk %}" hx-target="closest li" hx-swap="outerHTML" aria-label="Retry {{ document.title }}" title="Retry upload">×</button>
+  {% else %}
   <button type="button" aria-label="Remove {{ document.title }}" title="Deleting needs a contract endpoint — coming with a future spec">×</button>
+  {% endif %}
 </li>

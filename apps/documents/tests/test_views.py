@@ -144,6 +144,42 @@ def test_upload_document_creates_processing_record(logged_in):
     assert document.notebook == notebook
 
 
+def test_document_retry_requeues_failed_document(logged_in):
+    client, user = logged_in
+    notebook = NotebookFactory(title="Retry Notebook", user=user)
+    document = DocumentFactory(
+        notebook=notebook,
+        user=user,
+        title="Broken chapter.pdf",
+        status="failed",
+        failure_reason="extraction_failed",
+    )
+
+    response = client.post(reverse("document_retry", args=(document.pk,)))
+
+    assert response.status_code == 200
+    document.refresh_from_db()
+    assert document.status == "processing"
+    assert document.failure_reason is None
+
+
+def test_document_retry_requires_login(client):
+    document = DocumentFactory()
+
+    response = client.post(reverse("document_retry", args=(document.pk,)))
+
+    assert response.status_code == 302
+
+
+def test_document_retry_is_isolated_from_other_users(logged_in):
+    client, user = logged_in
+    other_document = DocumentFactory()
+
+    response = client.post(reverse("document_retry", args=(other_document.pk,)))
+
+    assert response.status_code == 404
+
+
 def test_upload_document_rejects_unsupported_type(logged_in):
     client, user = logged_in
     notebook = NotebookFactory(user=user)

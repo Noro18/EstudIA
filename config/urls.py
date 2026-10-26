@@ -14,5 +14,6 @@ urlpatterns = [
     path("notebooks/<int:pk>/documents/", document_views.notebook_upload_document, name="notebook_upload_document"),
     path("notebooks/<int:pk>/ask/", qa_views.notebook_ask, name="notebook_ask"),
     path("documents/<int:pk>/", document_views.document_detail, name="document_detail"),
+    path("documents/<int:pk>/retry/", document_views.document_retry, name="document_retry"),
     path("conversations/<int:pk>/", qa_views.conversation_detail, name="conversation_detail"),
 ]
