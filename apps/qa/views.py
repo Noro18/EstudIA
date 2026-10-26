@@ -1,6 +1,8 @@
 import json
 import logging
 import queue
+import re
+import time
 import threading
 
 from django.conf import settings
@@ -23,6 +25,8 @@ logger = logging.getLogger(__name__)
 # and browsers kill the idle SSE connection (the "Network Error" symptom).
 HEARTBEAT_SECONDS = 15
 KEEP_ALIVE = ": keep-alive\n\n"
+STREAM_WORDS_PER_EVENT = 1
+STREAM_WORD_DELAY_SECONDS = 0.035
 
 
 @login_required
@@ -102,6 +106,17 @@ def _sse(event, payload):
     return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
 
 
+def _stream_word_groups(text, words_per_group=STREAM_WORDS_PER_EVENT):
+    """Split provider text without dropping whitespace or Markdown newlines."""
+    tokens = re.findall(r"\s*\S+", text)
+    if not tokens:
+        if text:
+            yield text
+        return
+    for index in range(0, len(tokens), words_per_group):
+        yield "".join(tokens[index : index + words_per_group])
+
+
 def _run_llm(adapter, messages, out):
     """Consume the adapter generator in a worker thread, forwarding every part.
 
@@ -147,10 +162,14 @@ def _stream_answer(user, conversation, user_message):
                     {"message": str(item), "code": getattr(item, "error_code", "llm_unavailable")},
                 )
                 return
-            answer_parts.append(item["text"])
             usage.update({key: value for key, value in item["usage"].items() if value})
             if item["text"]:
-                yield _sse("message", {"html": render_markdown("".join(answer_parts))})
+                groups = list(_stream_word_groups(item["text"]))
+                for index, group in enumerate(groups):
+                    answer_parts.append(group)
+                    yield _sse("message", {"html": render_markdown("".join(answer_parts))})
+                    if index < len(groups) - 1:
+                        time.sleep(STREAM_WORD_DELAY_SECONDS)
         worker.join()
 
         answer = "".join(answer_parts)

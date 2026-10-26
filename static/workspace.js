@@ -6,9 +6,33 @@ function initWorkspace(){
   var side=document.getElementById("side");
   var menu=document.getElementById("menu");
   var feed=document.getElementById("feed");
+  var jumpLatest=document.getElementById("jump-latest");
   var q=document.getElementById("q");
   var conversationId=document.getElementById("conversation-id");
   var askForm=document.getElementById("ask-form");
+  var isNearLiveEdge=function(){
+    return feed.scrollHeight-feed.scrollTop-feed.clientHeight<96;
+  };
+  var updateJumpLatest=function(){
+    if(jumpLatest)jumpLatest.hidden=isNearLiveEdge();
+  };
+  var scrollToLiveEdge=function(smooth){
+    feed.scrollTo({
+      top:feed.scrollHeight,
+      behavior:smooth?"smooth":"auto"
+    });
+    updateJumpLatest();
+  };
+  if(feed){
+    feed.addEventListener("scroll",updateJumpLatest);
+    updateJumpLatest();
+  }
+  if(jumpLatest){
+    jumpLatest.addEventListener("click",function(){
+      scrollToLiveEdge(true);
+      if(q)q.focus();
+    });
+  }
   if(askForm&&q&&feed){
     askForm.addEventListener("submit",function(event){
       event.preventDefault();
@@ -26,9 +50,73 @@ function initWorkspace(){
           var decoder=new TextDecoder();
           var buffer="";
           var assistant=null;
+          var streamFollow=true;
+          var pendingHtml=null;
+          var renderTimer=null;
+          // Keep the provider fast; pace only the visible browser updates.
+          var streamRenderInterval=70;
+          var fadeLatestToken=function(root){
+            var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+            var latest=null;
+            while(walker.nextNode()){
+              if(walker.currentNode.nodeValue.trim())latest=walker.currentNode;
+            }
+            if(!latest)return;
+            var start=latest.nodeValue.search(/\S+\s*$/);
+            if(start<0)return;
+            var token=latest.splitText(start);
+            var fade=document.createElement("span");
+            fade.className="stream-token";
+            fade.textContent=token.nodeValue;
+            token.parentNode.replaceChild(fade,token);
+          };
+          var scrollStreamAsItGrows=function(){
+            if(!assistant||!streamFollow)return;
+            var feedBottom=feed.getBoundingClientRect().bottom-24;
+            var answerBottom=assistant.getBoundingClientRect().bottom;
+            if(answerBottom>feedBottom){
+              feed.scrollTop+=answerBottom-feedBottom;
+            }
+          };
+          var stopStreamFollowing=function(){streamFollow=false};
+          var cleanupStreamFollowing=function(){
+            feed.removeEventListener("wheel",stopStreamFollowing);
+            feed.removeEventListener("touchstart",stopStreamFollowing);
+          };
+          feed.addEventListener("wheel",stopStreamFollowing,{once:true});
+          feed.addEventListener("touchstart",stopStreamFollowing,{once:true});
+          var renderAssistant=function(){
+            if(!assistant||pendingHtml===null)return;
+            assistant.innerHTML=pendingHtml;
+            fadeLatestToken(assistant);
+            pendingHtml=null;
+            scrollStreamAsItGrows();
+            if(!streamFollow&&isNearLiveEdge())scrollToLiveEdge();
+            else updateJumpLatest();
+          };
+          var scheduleAssistantRender=function(html){
+            pendingHtml=html;
+            if(renderTimer!==null)return;
+            renderTimer=window.setTimeout(function(){
+              renderTimer=null;
+              renderAssistant();
+            },streamRenderInterval);
+          };
+          var flushAssistantRender=function(){
+            if(renderTimer!==null){
+              window.clearTimeout(renderTimer);
+              renderTimer=null;
+            }
+            renderAssistant();
+          };
           function read(){
             return reader.read().then(function(result){
-              if(result.done){send.disabled=false;return}
+              if(result.done){
+                flushAssistantRender();
+                cleanupStreamFollowing();
+                send.disabled=false;
+                return;
+              }
               buffer+=decoder.decode(result.value,{stream:true});
               var events=buffer.split("\n\n");
               buffer=events.pop();
@@ -52,15 +140,27 @@ function initWorkspace(){
                   spinner.className="message-spinner";
                   spinner.setAttribute("aria-label","Gemini is thinking");
                   assistant.appendChild(spinner);
+                  var status=document.createElement("span");
+                  status.className="thinking-status";
+                  status.setAttribute("role","status");
+                  status.textContent="thinking\u2026";
+                  assistant.appendChild(status);
                   feed.appendChild(assistant);
+                  feed.scrollTop=Math.max(0,assistant.offsetTop-24);
+                  updateJumpLatest();
                 }else if(eventName==="message"&&assistant){
                   if(assistant.classList.contains("message-loading")){
                     assistant.classList.remove("message-loading");
                     assistant.textContent="";
                   }
-                  assistant.innerHTML=data.html;
-                  feed.scrollTop=feed.scrollHeight;
+                  scheduleAssistantRender(data.html);
                 }else if(eventName==="error"){
+                  cleanupStreamFollowing();
+                  if(renderTimer!==null){
+                    window.clearTimeout(renderTimer);
+                    renderTimer=null;
+                  }
+                  pendingHtml=null;
                   if(assistant)assistant.classList.remove("message-loading");
                   if(assistant)assistant.textContent=data.message;
                   else{assistant=document.createElement("div");assistant.className="msg ai err";assistant.textContent=data.message;feed.appendChild(assistant)}
@@ -74,6 +174,7 @@ function initWorkspace(){
           return read();
         })
         .catch(function(error){
+          cleanupStreamFollowing();
           var failure=document.createElement("div");
           failure.className="msg ai";
           failure.textContent=error.message;
