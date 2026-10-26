@@ -1,0 +1,21 @@
+# Local development database: Postgres 17 + the pgvector extension.
+# Same container, ports, credentials, and volume as .env (DB_PORT=5433) expect.
+# One command on a fresh machine:  sudo docker compose up -d
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: studia-pg
+    environment:
+      POSTGRES_DB: studia
+      POSTGRES_USER: studia
+      POSTGRES_PASSWORD: studia
+    ports:
+      - "5433:5432"
+    volumes:
+      - studia-pg-data:/var/lib/postgresql/data
+
+volumes:
+  # `name:` pins the exact volume name created by a manual docker run,
+  # so compose reuses it instead of making a project-prefixed copy.
+  studia-pg-data:
+    name: studia-pg-data

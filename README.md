@@ -9,13 +9,16 @@ Study assistant that answers questions in Tetum about your documents, using retr
 
 ## Database
 
-PostgreSQL runs in Docker. Start it before running the app or the tests:
+PostgreSQL (+ the pgvector extension) runs in Docker, defined in
+`docker-compose.yml`. On a fresh machine this creates the container
+(`studia-pg`) and its data volume; every later call just starts it:
 
 ```bash
-sudo docker start studia-pg
+sudo docker compose up -d
 ```
 
-The connection settings (host, port `5433`, credentials) come from `.env`.
+The connection settings (host, port `5433`, credentials) come from `.env` —
+copy `.env.example` to `.env` and fill in real values.
 
 ## Setup and run
 
