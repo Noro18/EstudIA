@@ -1,10 +1,12 @@
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from apps.documents import views as document_views
 from apps.qa import views as qa_views
 
 urlpatterns = [
+    path("", RedirectView.as_view(url="/notebooks/", permanent=False), name="home"),
     path("admin/", admin.site.urls),
     path("accounts/", include("django.contrib.auth.urls")),
     path("notebooks/", document_views.notebook_list, name="notebook_list"),
