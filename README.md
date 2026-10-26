@@ -5,7 +5,8 @@ Study assistant that answers questions in Tetum about your documents, using retr
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/) (Python package and project manager)
-- Docker (for the PostgreSQL database)
+- Docker **with the Compose plugin** (the `docker compose` command) — on Arch/Manjaro
+  install the `docker-compose` package; on Debian/Ubuntu the package is `docker-compose-v2`
 
 ## Database
 
@@ -15,6 +16,13 @@ PostgreSQL (+ the pgvector extension) runs in Docker, defined in
 
 ```bash
 sudo docker compose up -d
+```
+
+Created `studia-pg` earlier with a manual `docker run`? Hand it over to Compose
+once — the `studia-pg-data` volume and all its data are kept:
+
+```bash
+sudo docker rm -f studia-pg && sudo docker compose up -d
 ```
 
 The connection settings (host, port `5433`, credentials) come from `.env` —
