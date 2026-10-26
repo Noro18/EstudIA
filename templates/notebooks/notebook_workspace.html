@@ -38,6 +38,9 @@
     {% else %}
       <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
     {% endif %}
+    <button class="jump-latest" id="jump-latest" type="button" hidden>
+      Jump to latest
+    </button>
   </div>
   <form class="bar" id="ask-form" method="post" action="{% url 'notebook_ask' notebook.pk %}">
     <input type="hidden" id="conversation-id" name="conversation_id" value="{% if conversation %}{{ conversation.pk }}{% endif %}">

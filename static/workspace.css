@@ -43,6 +43,8 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
 .message-loading{display:flex;align-items:center;min-height:24px}
 .message-spinner{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:status-spin .8s linear infinite}
 .thinking-status{margin-left:8px;color:var(--muted);font-size:.85em;animation:thinking-pulse 1.6s ease-in-out infinite}
+.stream-token{animation:stream-token-in .22s ease-out both}
+@keyframes stream-token-in{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:blur(0)}}
 @keyframes thinking-pulse{0%,100%{opacity:.55}50%{opacity:1}}
 @keyframes status-spin{to{transform:rotate(360deg)}}
 .doc button{border:0;background:none;color:var(--muted);font-size:16px;padding:0 4px}
@@ -50,7 +52,7 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
 .empty{color:var(--muted);font-size:13px;text-align:center;padding:20px 0}
 
 .chat{flex:1;display:flex;flex-direction:column;min-width:0}
-.feed{flex:1;overflow-y:auto;padding:24px max(24px,calc((100% - 780px)/2));display:flex;flex-direction:column;gap:20px}
+.feed{position:relative;flex:1;overflow-y:auto;padding:24px max(24px,calc((100% - 780px)/2)) 96px;display:flex;flex-direction:column;gap:20px}
 .msg{max-width:780px;padding:0;white-space:pre-wrap;word-wrap:break-word}
 .msg.user{align-self:flex-end;max-width:520px;padding:10px 14px;border-radius:14px;border-bottom-right-radius:4px;background:var(--brand);color:#fff;margin-bottom:12px}
 .msg.ai{align-self:flex-start;max-width:780px;text-align:left;white-space:normal}
@@ -77,6 +79,9 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
 .msg.ai th{background:var(--soft);font-weight:600}
 .msg.err{background:#fdf1f0;border:1px solid #eccaca;border-radius:12px;color:#8a2f2a;padding:10px 14px;white-space:normal;align-self:flex-start;max-width:780px}
 .msg.sys{align-self:center;color:var(--muted);font-size:13px;background:none;padding:0}
+.jump-latest{position:fixed;right:24px;bottom:96px;z-index:6;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--brand);padding:7px 12px;box-shadow:0 6px 18px rgba(28,37,49,.14);font-size:13px;font-weight:600}
+.jump-latest:hover{background:var(--soft)}
+@media (prefers-reduced-motion: reduce){.stream-token{animation:none}}
 .bar{padding:12px max(24px,calc((100% - 780px)/2)) 16px;display:flex;gap:8px;align-items:flex-end}
 .bar textarea{flex:1;resize:none;max-height:140px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;padding:10px 12px;scrollbar-width:none}
 .bar textarea::-webkit-scrollbar{display:none}
@@ -87,7 +92,7 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
  .side{position:fixed;inset:0 auto 0 0;z-index:5;width:min(300px,88vw);transform:translateX(-100%);transition:transform .2s;padding-top:calc(16px + env(safe-area-inset-top,0px))}
  .side.open{transform:none;box-shadow:4px 0 24px rgba(0,0,0,.3)}
  .menu{display:block;z-index:4}
- .feed{padding:48px 14px 14px}.bar{padding:10px 14px 14px}
+ .feed{padding:48px 14px 88px}.jump-latest{right:14px;bottom:82px}.bar{padding:10px 14px 14px}
 }
 
 .page{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;width:min(420px,90vw);margin:0 auto}
