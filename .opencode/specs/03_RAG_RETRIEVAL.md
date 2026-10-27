@@ -36,6 +36,7 @@ This specification covers runtime retrieval and retrieval evaluation. It does no
 | No matches | Empty typed result, not an operational error |
 | Evaluation format | Versioned JSONL benchmark |
 | Evaluation modes | Vector-only, keyword-only, and hybrid |
+| Multi-pass baseline | Deferred: top 3 fused candidates per document, then global deterministic ranking to final top 8 |
 
 ## 4. Runtime interface
 
@@ -130,6 +131,40 @@ Return the eight highest-scoring unique chunks. Sort ties deterministically by a
 - If ready documents exist but no keyword/vector candidates match, return an empty `RetrievalResult`; the future answer layer produces an honest unsupported response.
 - If some documents are ready but have incompatible embedding metadata, exclude them and log the mismatch; compatible ready documents remain searchable.
 - Retrieval must never fabricate a page, document, excerpt, or chunk id.
+
+### 5.7 Deferred multi-pass retrieval
+
+The current implementation is a single Notebook-wide retrieval pass. To improve reliability when a Notebook contains several documents, the next retrieval design is a two-stage, document-aware pipeline. This work is documented but intentionally deferred; it is tracked in [GitHub issue #9](https://github.com/Noro18/EstudIA/issues/9).
+
+```text
+ready document A ──> vector + keyword retrieval ──> per-document RRF top 3 ──┐
+ready document B ──> vector + keyword retrieval ──> per-document RRF top 3 ──┼─> global ranking ──> final top 8
+ready document C ──> vector + keyword retrieval ──> per-document RRF top 3 ──┘
+```
+
+The deferred baseline will:
+
+1. Resolve an optional document scope. A selected document restricts retrieval to that document; without one, all ready Notebook documents participate.
+2. Run vector and keyword retrieval separately inside each eligible document.
+3. Fuse each document’s two candidate lists with the existing RRF formula.
+4. Keep the top 3 fused candidates from each document.
+5. Merge the per-document candidates and apply deterministic global score ordering.
+6. Return at most 8 final chunks to prompt construction.
+
+The second stage must retain each candidate’s document title, document id, page, chunk id, excerpt, and rank data. A candidate from one document must never be relabeled as belonging to another document.
+
+The initial multi-pass baseline deliberately uses deterministic score fusion and no extra LLM or reranker call. This keeps latency, cost, and evaluation behavior predictable.
+
+### 5.8 Future retrieval alternatives
+
+The following alternatives are recorded for later production evaluation and are not part of the current implementation:
+
+- **Dynamic per-document allocation:** give documents different candidate budgets based on their initial relevance scores. This may help larger collections but requires tuning and safeguards against one document crowding out all others.
+- **Semantic routing:** use a lightweight router to select likely documents before retrieval. This adds latency and a new failure mode when the router chooses the wrong document.
+- **Agentic RAG:** let the LLM choose document-retrieval tools iteratively. This may help multi-hop questions but adds cost, latency, orchestration complexity, and a larger evaluation surface.
+- **Model-based reranking:** use a local cross-encoder or hosted LLM to score the per-document candidate pool. This remains optional until deterministic multi-pass recall is measured.
+
+The deterministic multi-pass baseline must be measured before any of these alternatives is adopted.
 
 ## 6. Evaluation harness
 
@@ -251,6 +286,7 @@ uv run python experiments/evaluation/retrieval_recall.py --help
 - Changing chunk fields, indexes, or migrations.
 - Changing the RRF constant, candidate depth, final result count, or keyword semantics.
 - Integrating retrieval into the ask view or LLM prompt.
+- Enabling multi-pass retrieval in the production ask flow.
 - Adding dependencies.
 
 ### Never do
@@ -274,6 +310,7 @@ This specification is implemented when:
 6. Runtime and database tests pass.
 7. The JSONL evaluation harness reports recall@1/3/5/8 for vector-only, keyword-only, and hybrid retrieval.
 8. No ask-view, LLM, SSE, OCR, or citation-persistence behavior changes as part of this spec.
+9. The deferred multi-pass design is documented, linked to issue #9, and not enabled by this specification alone.
 
 ## 12. Open questions
 
