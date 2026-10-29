@@ -220,6 +220,10 @@ Agreed on Day 1 (JSON form) and **re-scoped on Oct 21** to HTML-over-the-wire af
 | `GET /conversations/{id}/` | Conversation history: messages with sources, for reopening a chat. |
 | `POST /documents/{id}/summary/` | Tetum summary with page references (cached), rendered partial — per-document, unaffected by Notebooks. |
 | `POST /documents/{id}/study-questions/` | Study questions with answers and page references — per-document, unaffected by Notebooks. Body: count. |
+| `POST /notebooks/{id}/quiz/` | Generate the notebook's multiple-choice quiz (optional § 3 feature, added Oct 30 — see § 14). Regenerates and replaces the previous set. Returns question cards as an HTML partial. |
+| `POST /notebooks/{id}/quiz/submit/` | Score the submitted quiz locally (no LLM call). Returns a results partial with per-question correctness, score, and stored chunk metadata as sources. |
+
+**Quiz contract (added Oct 30):** each question is generated from one stored chunk; the model must name the passage number it used and the backend **validates** that number against the chunks actually sent — sources (`document`, `page`, excerpt via the chunk FK) always come from stored metadata, never model output. Quiz content language is **English** (user decision Oct 30); the Tetum-first rule stays in force for the QA/ask flow. Scoring compares the picked letter to the stored `correct_letter` server-side. Errors reuse the § 8 codes: `document_not_ready` (no ready documents / no active quiz) and `llm_unavailable`. Every generation logs a `UsageRecord` with purpose `study_questions`.
 
 **Ask request fields:** question (required), conversation\_id (optional), stream (optional boolean).
 
@@ -357,6 +361,7 @@ Team members have other commitments, so keep ownership independent, hold a short
 | --- | --- | --- |
 | **Notebook re-scope: conversations cover several documents at once — DECIDED Oct 23 by the user** (artifact: `.opencode/specs/10_NOTEBOOK_MULTI_DOC_CHAT.md`; data contract: `docs/DATABASE.md` § 1 D9). § 8 endpoint table re-keyed Oct 23; exact URL confirmation rides with spec 04. | User/Team | ~~TBD~~ done |
 | **Re-assign work areas A-D across the 3 remaining team members (backend and frontend roles are unassigned)** | Team | TBD |
+| **Quiz mode (optional § 3) built after feature freeze — DECIDED Oct 30 by the user.** Approvals: user+build the minimal quiz set (generation from stored chunks, local scoring, no attempts table, question count via `QUIZ_QUESTION_COUNT` default 5, synchronous generation, `QuizQuestion` as a new model, UI in English, question content in English). No separate quiz-related endpoints cost model; contract recorded in § 8. Retrieval (PRD § 5 hybrid) is still a separate open item — quiz generation does not depend on it because it reads stored chunks directly. | User | done Oct 30 |
 | Competition rules: is a hosted API allowed, and are there connectivity, offline, or data requirements? | Noro | Oct 19 |
 | Frontend approach — **DECIDED Oct 21: Django templates + HTMX** (team has no React experience; simpler deploy for 3 members) | Noro | ~~Oct 19~~ done |
 | Provisional model | TBD | Oct 19 |

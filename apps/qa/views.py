@@ -16,7 +16,8 @@ from django.utils.safestring import mark_safe
 from apps.llm.adapter import GeminiAdapter, LLMUnavailable
 from apps.llm.models import UsageRecord
 
-from .models import Conversation, Message
+from .models import Conversation, Message, QuizQuestion
+from .services import QuizNotReady, generate_quiz
 
 render_markdown = mistune.create_markdown(escape=True)
 logger = logging.getLogger(__name__)
@@ -197,3 +198,58 @@ def _stream_answer(user, conversation, user_message):
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
+def _quiz_error(request, code, message):
+    """PRD § 8 error shape, reused from the documents error partial."""
+    return render(
+        request,
+        "documents/_error_fragment.html",
+        {"error_code": code, "message": message},
+        status=400,
+    )
+
+
+@login_required
+def notebook_quiz_start(request, pk):
+    """Generate a fresh quiz for the notebook and return question cards (HTMX)."""
+    notebook = get_object_or_404(request.user.notebooks, pk=pk)
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+    try:
+        questions = generate_quiz(notebook)
+    except QuizNotReady as exc:
+        return _quiz_error(request, exc.error_code, str(exc))
+    except LLMUnavailable as exc:
+        return _quiz_error(request, getattr(exc, "error_code", "llm_unavailable"), str(exc))
+    return render(request, "quiz/_cards.html", {"notebook": notebook, "questions": questions})
+
+
+@login_required
+def notebook_quiz_submit(request, pk):
+    """Score the submitted quiz locally — comparison, not a second LLM call."""
+    notebook = get_object_or_404(request.user.notebooks, pk=pk)
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+    questions = list(QuizQuestion.objects.filter(notebook=notebook).order_by("order"))
+    if not questions:
+        return _quiz_error(request, "document_not_ready", "No active quiz for this notebook.")
+    rows, correct = [], 0
+    for question in questions:
+        picked = request.POST.get(f"answer_{question.pk}", "")
+        is_correct = picked == question.correct_letter
+        if is_correct:
+            correct += 1
+        rows.append({
+            "question": question,
+            "picked": picked,
+            "picked_text": question.choices.get(picked) or "",
+            "correct_text": question.choices.get(question.correct_letter, ""),
+            "is_correct": is_correct,
+        })
+    return render(
+        request,
+        "quiz/_results.html",
+        {"notebook": notebook, "score": correct, "total": len(questions), "rows": rows},
+    )
+
