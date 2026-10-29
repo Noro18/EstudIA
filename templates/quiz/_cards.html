@@ -1,0 +1,21 @@
+<div class="quiz">
+  <p class="quiz-score">Quiz — {{ questions|length }} questions</p>
+  <form class="quiz-form" hx-post="{% url 'notebook_quiz_submit' notebook.pk %}"
+        hx-target="#quiz-area" hx-swap="innerHTML">
+    {% for question in questions %}
+      <div class="quiz-card">
+        <p class="quiz-meta">Question {{ forloop.counter }} · {{ question.chunk.document.title }} · page {{ question.chunk.page_number }}</p>
+        <p class="quiz-question">{{ question.question }}</p>
+        <div class="quiz-options">
+          {% for letter, text in question.choices.items %}
+            <label class="quiz-option">
+              <input type="radio" name="answer_{{ question.pk }}" value="{{ letter }}" required>
+              <span class="quiz-letter">{{ letter }}</span> {{ text }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+    <button class="send" type="submit">Submit answers</button>
+  </form>
+</div>
