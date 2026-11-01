@@ -100,5 +100,38 @@ class StudyQuestion(models.Model):
     def __str__(self):
         return f"Study question #{self.order} (doc={self.document_id})"
 
+class QuizQuestion(models.Model):
+    """One generated multiple-choice question, tied to the chunk it came from.
 
+    The chunk FK is the citation rule in action: page, excerpt, and document
+    identity always come from stored metadata, never from the model's words.
+    A notebook holds exactly one active quiz set; regenerating replaces it.
+    """
+
+    notebook = models.ForeignKey(
+        "documents.Notebook",
+        on_delete=models.CASCADE,
+        related_name="quiz_questions",
+    )
+    chunk = models.ForeignKey(
+        "documents.Chunk",
+        on_delete=models.PROTECT,
+        related_name="quiz_questions",
+    )
+    order = models.IntegerField()
+    question = models.TextField()
+    choices = models.JSONField()
+    correct_letter = models.CharField(max_length=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["notebook", "order"],
+                name="qa_quizquestion_notebook_order_uniq",
+            )
+        ]
+
+    def __str__(self):
+        return f"Quiz question #{self.order} (notebook={self.notebook_id})"
 

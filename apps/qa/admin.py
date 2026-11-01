@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Conversation, Message, MessageSource, StudyQuestion
+from .models import Conversation, Message, MessageSource, QuizQuestion, StudyQuestion
 
 
 class MessageInline(admin.TabularInline):
@@ -47,3 +47,8 @@ class StudyQuestionAdmin(admin.ModelAdmin):
     list_display = ("id", "document", "order", "page", "question")
     raw_id_fields = ("document",)
     ordering = ("document", "order")
+
+
+@admin.register(QuizQuestion)
+class QuizQuestionAdmin(admin.ModelAdmin):
+    list_display = ("notebook", "order", "correct_letter")

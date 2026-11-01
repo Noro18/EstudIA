@@ -1,0 +1,14 @@
+<div class="quiz">
+  <p class="quiz-score{% if score == total %} quiz-perfect{% endif %}">Score: {{ score }}/{{ total }}</p>
+  {% for row in rows %}
+    <div class="quiz-card{% if row.is_correct %} card-correct{% else %} card-wrong{% endif %}">
+      <p class="quiz-verdict">{% if row.is_correct %}✓ Correct{% else %}✗ Wrong{% endif %}</p>
+      <p class="quiz-question">{{ row.question.question }}</p>
+      <p class="quiz-answer">Your answer: {% if row.picked %}{{ row.picked }}. {{ row.picked_text }}{% else %}—{% endif %}</p>
+      {% if not row.is_correct %}<p class="quiz-answer">Correct answer: {{ row.question.correct_letter }}. {{ row.correct_text }}</p>{% endif %}
+      <p class="quiz-source">Source: {{ row.question.chunk.document.title }} · page {{ row.question.chunk.page_number }} · “{{ row.question.chunk.text|truncatechars:120 }}”</p>
+    </div>
+  {% endfor %}
+  <button class="up" type="button" hx-post="{% url 'notebook_quiz_start' notebook.pk %}"
+          hx-target="#quiz-area" hx-swap="innerHTML">Quiz again</button>
+</div>

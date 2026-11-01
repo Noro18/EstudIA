@@ -1,7 +1,18 @@
 import factory
 
 from apps.documents.tests.factories import ChunkFactory, DocumentFactory, NotebookFactory
-from apps.qa.models import Conversation, Message, MessageSource, StudyQuestion
+from apps.qa.models import Conversation, Message, MessageSource, QuizQuestion, StudyQuestion
+
+class QuizQuestionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = QuizQuestion
+
+    chunk = factory.SubFactory(ChunkFactory)
+    notebook = factory.LazyAttribute(lambda o: o.chunk.document.notebook)
+    order = factory.Sequence(lambda n: n + 1)
+    question = factory.Sequence(lambda n: f"Quiz question {n}")
+    choices = factory.LazyFunction(lambda: {"A": "X", "B": "Y", "C": "Z", "D": "W"})
+    correct_letter = "A"
 
 
 class ConversationFactory(factory.django.DjangoModelFactory):

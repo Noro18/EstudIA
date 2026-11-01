@@ -182,6 +182,22 @@ Generated study Q&A banking (must-have 2; `POST /documents/{id}/study-questions/
 
 Indexes: `(document, order)` unique. Regeneration = delete rows for the document, insert new set inside one transaction.
 
+### `qa.QuizQuestion`
+
+Multiple-choice quiz cards (optional § 3; `POST /notebooks/{id}/quiz/` + `/quiz/submit/`). Added Oct 30 — see PRD § 14.
+
+| Field | Type | Notes |
+|---|---|---|
+| `notebook` | FK Notebook, CASCADE | one notebook holds exactly one active quiz set |
+| `chunk` | FK Chunk, PROTECT | the citation rule: page/excerpt/document come only from stored chunk metadata |
+| `order` | IntegerField | 1..N display position |
+| `question` | TextField | English (user decision Oct 30) |
+| `choices` | JSONField | object with keys `A` `B` `C` `D` |
+| `correct_letter` | CharField(1) | scoring compares the picked letter to this — no LLM call |
+| `created_at` | auto | |
+
+Indexes: `(notebook, order)` unique. Regeneration = delete the notebook's rows, insert the new set inside one transaction. No attempts/answer history is stored on purpose (MVP, decided Oct 30).
+
 ### `llm.UsageRecord`
 
 The cost ledger (PRD § 7: "every call logs tokens, latency, cost") and the quota counter (RNF07, D3).
@@ -308,6 +324,23 @@ POST /documents/{id}/study-questions/ body: count
   - else LLM generates (mirror of summary's map-reduce over top-level structure)
       UsageRecord(purpose=study_questions); persist count rows with page refs
 ```
+
+### 4.4b Quiz (added Oct 30)
+
+Notebook scope, synchronous request–response (page stays on an HTMX partial):
+
+```text
+POST /notebooks/{id}/quiz/
+  - pick QUIZ_QUESTION_COUNT chunks round-robin from ready documents (no vector search)
+  - one LLM call: English instructions → strict JSON list; validate chunk numbers,
+    letters, and non-empty strings; discard invalid items
+  - if nothing valid → llm_unavailable error fragment
+  - UsageRecord(purpose=study_questions); replace + persist the active set
+POST /notebooks/{id}/quiz/submit/
+  - score = compare picked letters to stored correct_letter rows (local, no LLM)
+```
+
+Quota note: generation purpose is `study_questions`, so it counts toward the personal daily limit (§ 4.5); scoring makes no LLM call and is free.
 
 ### 4.5 Quota + rate limiting (RNF07)
 

@@ -99,3 +99,31 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
 .page input{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;padding:10px 12px}
 .page h1{margin:0 0 6px}
 .chip{display:inline-block;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px;padding:2px 10px}
+
+.chip{display:inline-block;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px;padding:2px 10px}
+
+
+.quiz-zone{padding:12px max(24px,calc((100% - 780px)/2)) 0}
+.quiz{display:flex;flex-direction:column;gap:12px}
+.quiz-score{font-weight:700;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);width:max-content;margin:0}
+.quiz-perfect{border-color:#16803c;color:#16803c}
+.quiz-form{display:flex;flex-direction:column;gap:12px}
+.quiz-card{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}
+.card-correct{border-color:#16803c}
+.card-wrong{border-color:#d9534f}
+.quiz-meta{font-size:12px;color:var(--muted);margin:0 0 4px}
+.quiz-question{margin:.2em 0 .5em;font-weight:600}
+.quiz-options{display:flex;flex-direction:column;gap:6px}
+.quiz-option{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer}
+.quiz-option:hover{background:var(--soft)}
+.quiz-letter{font-weight:700;color:var(--brand)}
+.quiz-answer{font-size:13px;margin:.2em 0}
+.quiz-source{font-size:12px;color:var(--muted);margin:.2em 0}
+.quiz-verdict{margin:0;font-weight:700}
+.card-correct .quiz-verdict{color:#16803c}
+.card-wrong .quiz-verdict{color:#8a2f2a}
+.quiz-loading{display:none;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+.quiz-loading.htmx-request{display:flex}
+.quiz-spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:status-spin .8s linear infinite}
+.quiz-btn[disabled]{opacity:.6}
+
