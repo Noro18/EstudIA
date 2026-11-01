@@ -15,6 +15,8 @@ from django.utils.safestring import mark_safe
 
 from apps.llm.adapter import GeminiAdapter, LLMUnavailable
 from apps.llm.models import UsageRecord
+from apps.rag.prompting import build_grounded_messages
+from apps.rag.retrieval import retrieve_hybrid_chunks
 
 from .models import Conversation, Message
 
@@ -138,13 +140,28 @@ def _run_llm(adapter, messages, out):
 def _stream_answer(user, conversation, user_message):
     def events():
         yield _sse("user", {"conversation_id": conversation.pk, "text": user_message.content})
+        matches = retrieve_hybrid_chunks(
+            user_message.content,
+            conversation.notebook_id,
+        )
+        if not matches:
+            yield _sse(
+                "error",
+                {
+                    "code": "document_not_ready",
+                    "message": "No ready document is available yet.",
+                },
+            )
+            return
+
+        messages = build_grounded_messages(user_message.content, matches)
         adapter = GeminiAdapter()
         answer_parts = []
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "latency_ms": 0}
         out = queue.Queue()
         worker = threading.Thread(
             target=_run_llm,
-            args=(adapter, _gemini_messages(conversation), out),
+            args=(adapter, messages, out),
             daemon=True,
         )
         worker.start()

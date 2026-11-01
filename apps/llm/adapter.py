@@ -98,6 +98,15 @@ def _usage_from_metadata(metadata):
     }
 
 
+def build_adapter():
+    """Create the adapter named by LLM_PROVIDER (default: gemini)."""
+    if settings.LLM_PROVIDER == "openai_compat":
+        from apps.llm.openai_compat import OpenAICompatAdapter
+
+        return OpenAICompatAdapter()
+    return GeminiAdapter()
+
+
 class GeminiAdapter:
     """Answers from the Gemini API behind generate(messages, stream)."""
 
