@@ -46,3 +46,13 @@ uv run pytest
 ```
 
 Tests need the database running (they create a throwaway `test_` database).
+
+## Citations
+
+Answers list their sources, and the list is built to stay honest: the model
+names the passage numbers it used, the backend validates those numbers against
+the chunks that were actually retrieved, and every citation (document, page,
+excerpt) is written from stored metadata — never from the model's words. If
+nothing validates, the bubble is marked "no source passage supports this
+answer" instead of showing fake citations. Sources appear as chips under each
+answer; click one to read the stored excerpt.
