@@ -1,0 +1,15 @@
+{% if message.supported and message.sources.all %}
+<details class="sources">
+  <summary>Sources</summary>
+  <ul class="source-list">
+    {% for source in message.sources.all %}
+      <li>
+        <details class="source">
+          <summary>{{ source.chunk.document.title }} · p. {{ source.page }}</summary>
+          <p class="excerpt">{{ source.excerpt }}</p>
+        </details>
+      </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}

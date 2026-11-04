@@ -1,10 +1,11 @@
-"""Quiz generation service — optional PRD § 3 "multiple-choice quiz mode".
+"""QA services — quiz generation and answer-citation finalization.
 
-Rules honored here (PRD § 5/§ 7): the model must name the passage it used, and
-every generated question is validated against the chunks that were actually
-sent. Citations never come from the model's words. One UsageRecord per LLM
-call. Quiz content language is English (user decision, Oct 30 2026) — the
-Tetum-first rule stays untouched for the QA answer flow.
+Quiz rules (PRD § 3 optional, Oct 30 2026): the model must name the passage it
+used, and every generated question is validated against the chunks that were
+actually sent. Citations never come from the model's words. One UsageRecord
+per LLM call — the same rule the citation finalizer follows (spec 13). Quiz
+content language is English (user decision, Oct 30 2026); the Tetum-first
+rule stays untouched for the QA answer flow.
 """
 import json
 import logging
@@ -22,6 +23,121 @@ from .models import QuizQuestion
 logger = logging.getLogger(__name__)
 
 LETTERS = ("A", "B", "C", "D")
+
+# The exact marker the grounded prompt (apps/rag/prompting.py) pins in its
+# instruction ("Used chunks: [1, 2]") — one format, two consumers, tested
+# against each other (spec 13). Brackets are allowed to carry anything; every
+# piece must be a positive integer or it is dropped (never guessed).
+_USED_CHUNKS_RE = re.compile(r"^Used chunks: \[(?P<numbers>[^\]]*)\]\.?\s*$")
+
+
+def parse_used_chunks(answer):
+    """Chunk numbers the model claims to have used (spec 13 C1/C5).
+
+    Reads the string emitted by the grounded prompt's `Used chunks:` line —
+    the LAST non-empty line of the answer, nothing else. Malformed or missing
+    markers yield zero citations, never guesses. First-appearance order,
+    deduplicated; validation against the supplied chunks happens later.
+    """
+    text = (answer or "").rstrip()
+    if not text:
+        return ()
+    last_line = text.rsplit("\n", 1)[-1].strip()
+    match = _USED_CHUNKS_RE.match(last_line)
+    if not match:
+        return ()
+    numbers, seen = [], set()
+    for piece in match.group("numbers").split(","):
+        piece = piece.strip()
+        if not piece or not piece.isdigit():
+            continue
+        number = int(piece)
+        if number > 0 and number not in seen:
+            seen.add(number)
+            numbers.append(number)
+    return tuple(numbers)
+
+
+def strip_used_chunks(answer):
+    """Answer text with the trailing `Used chunks:` marker line removed (C4).
+
+    Only the recognized marker is removed — malformed lines stay visible, so
+    parsing problems surface in the UI instead of hiding.
+    """
+    text = (answer or "").rstrip()
+    if not text:
+        return text
+    last_line = text.rsplit("\n", 1)[-1].strip()
+    if _USED_CHUNKS_RE.match(last_line):
+        return text.rsplit("\n", 1)[0].rstrip()
+    return text
+
+
+def _citation_excerpt(text):
+    """Snapshot rule (DATABASE.md § 3): first 280 chars, `…` when truncated."""
+    return (text[:280] + "…") if len(text) > 280 else text
+
+
+def finalize_assistant_message(conversation, user, matches, answer, usage):
+    """Persist the answer bubble with its validated citations (spec 13).
+
+    Steps (PRD § 5 step 8, DATABASE.md § 4.2 step 7): parse the model's chunk
+    numbers → validate ⊆ supplied chunk ids → one MessageSource row per
+    distinct chunk with page + excerpt snapshots → `supported` set mechanically
+    (citations ≥ 1) → one UsageRecord row for the call. Returns the Message.
+    """
+    from .models import Message, MessageSource  # local import avoids cycles
+
+    valid, seen_chunk_ids = [], set()
+    for number in parse_used_chunks(answer):
+        index = number - 1
+        if not 0 <= index < len(matches):
+            continue
+        match = matches[index]
+        if match.chunk_id in seen_chunk_ids:
+            continue
+        seen_chunk_ids.add(match.chunk_id)
+        valid.append(match)
+
+    with transaction.atomic():
+        last_seq = (
+            conversation.messages.order_by("-seq").values_list("seq", flat=True).first() or 0
+        )
+        message = Message.objects.create(
+            conversation=conversation,
+            seq=last_seq + 1,
+            role=Message.Role.ASSISTANT,
+            content=strip_used_chunks(answer),
+            supported=bool(valid),
+        )
+        MessageSource.objects.bulk_create(
+            MessageSource(
+                message=message,
+                chunk_id=match.chunk_id,
+                page=match.page,
+                excerpt=_citation_excerpt(match.text),
+                order=order,
+            )
+            for order, match in enumerate(valid, start=1)
+        )
+        UsageRecord.objects.create(
+            user=user,
+            message=message,
+            purpose=UsageRecord.Purpose.ASK,
+            provider=usage.get("provider", "gemini"),
+            model=usage.get("model") or settings.LLM_MODEL,
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            latency_ms=usage.get("latency_ms", 0),
+            cost_usd=0,
+        )
+    if not valid:
+        logger.warning(
+            "Assistant message %s has no validated citations -> supported=False",
+            message.pk,
+        )
+    return message
+
 
 QUIZ_PROMPT_HEAD = """You are StudIA, a study assistant for students in Timor-Leste.
 
