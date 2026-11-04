@@ -15,11 +15,12 @@ from .tasks import enqueue_document_ingestion
 render_markdown = mistune.create_markdown(escape=True)
 
 
-def _history_rows(conversation):
+def _history_rows(messages):
     """Server-rendered chat history; assistant answers come pre-rendered so the
-    workspace looks identical to the live-streamed chat."""
+    workspace looks identical to the live-streamed chat. Sources ride in the
+    same round-trip so citations render without extra queries."""
     rows = []
-    for message in conversation.messages.all():
+    for message in messages:
         if message.role == Message.Role.ASSISTANT:
             rows.append({"message": message, "html": mark_safe(render_markdown(message.content))})
         else:
@@ -42,6 +43,11 @@ def notebook_list(request):
 def notebook_workspace(request, pk):
     notebook = get_object_or_404(Notebook, pk=pk, user=request.user)
     conversation = notebook.conversations.order_by("-created_at").first()
+    messages = (
+        conversation.messages.prefetch_related("sources__chunk__document").all()
+        if conversation
+        else None
+    )
     return render(
         request,
         "notebooks/notebook_workspace.html",
@@ -49,7 +55,7 @@ def notebook_workspace(request, pk):
             "notebook": notebook,
             "notebooks": request.user.notebooks.all(),
             "conversation": conversation,
-            "rows": _history_rows(conversation) if conversation else [],
+            "rows": _history_rows(messages) if messages else [],
         },
     )
 
