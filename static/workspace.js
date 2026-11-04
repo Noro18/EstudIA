@@ -166,6 +166,40 @@ function initWorkspace(){
                   else{assistant=document.createElement("div");assistant.className="msg ai err";assistant.textContent=data.message;feed.appendChild(assistant)}
                   if(assistant)assistant.classList.add("err");
                   send.disabled=false;
+                }else if(eventName==="done"&&assistant){
+                  // Citations ride the done event (spec 13): chips under the
+                  // bubble; each opens the stored excerpt. No JS storage —
+                  // the server already persisted MessageSource rows.
+                  if(data.supported===false){
+                    var note=document.createElement("div");
+                    note.className="unsupported-note";
+                    note.textContent="No source passage supports this answer.";
+                    assistant.after(note);
+                  }else if(data.sources&&data.sources.length){
+                    var wrap=document.createElement("details");
+                    wrap.className="sources";
+                    var label=document.createElement("summary");
+                    label.textContent="Sources ("+data.sources.length+")";
+                    wrap.appendChild(label);
+                    var list=document.createElement("ul");
+                    list.className="source-list";
+                    data.sources.forEach(function(source){
+                      var item=document.createElement("li");
+                      var chip=document.createElement("details");
+                      chip.className="source";
+                      var title=document.createElement("summary");
+                      title.textContent=source.document+" \u00b7 p. "+source.page;
+                      var excerpt=document.createElement("p");
+                      excerpt.className="excerpt";
+                      excerpt.textContent=source.excerpt;
+                      chip.appendChild(title);
+                      chip.appendChild(excerpt);
+                      item.appendChild(chip);
+                      list.appendChild(item);
+                    });
+                    wrap.appendChild(list);
+                    assistant.after(wrap);
+                  }
                 }
               });
               return read();

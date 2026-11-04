@@ -5,7 +5,6 @@ import re
 import time
 import threading
 
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponseBadRequest, StreamingHttpResponse
@@ -14,7 +13,9 @@ import mistune
 from django.utils.safestring import mark_safe
 
 from apps.llm.adapter import GeminiAdapter, LLMUnavailable
-from apps.llm.models import UsageRecord
+from apps.qa.services import finalize_assistant_message
+from apps.rag.prompting import build_grounded_messages
+from apps.rag.retrieval import retrieve_hybrid_chunks
 
 from .models import Conversation, Message, QuizQuestion
 from .services import QuizNotReady, generate_quiz
@@ -34,10 +35,13 @@ STREAM_WORD_DELAY_SECONDS = 0.035
 def conversation_detail(request, pk):
     conversation = get_object_or_404(Conversation, pk=pk, user=request.user)
     rows = []
-    for message in conversation.messages.all():
+    for message in conversation.messages.prefetch_related(
+        "sources__chunk__document"
+    ).all():
         if message.role == Message.Role.ASSISTANT:
             # Render once, at request time, so the replay looks like the live stream.
-            rows.append({"message": message, "html": mark_safe(render_markdown(message.content))})
+            rows.append({"message": message, "html": mark_safe(render_markdown(message.content))}
+            )
         else:
             rows.append({"message": message, "html": None})
     return render(
@@ -139,13 +143,28 @@ def _run_llm(adapter, messages, out):
 def _stream_answer(user, conversation, user_message):
     def events():
         yield _sse("user", {"conversation_id": conversation.pk, "text": user_message.content})
+        matches = retrieve_hybrid_chunks(
+            user_message.content,
+            conversation.notebook_id,
+        )
+        if not matches:
+            yield _sse(
+                "error",
+                {
+                    "code": "document_not_ready",
+                    "message": "No ready document is available yet.",
+                },
+            )
+            return
+
+        messages = build_grounded_messages(user_message.content, matches)
         adapter = GeminiAdapter()
         answer_parts = []
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "latency_ms": 0}
         out = queue.Queue()
         worker = threading.Thread(
             target=_run_llm,
-            args=(adapter, _gemini_messages(conversation), out),
+            args=(adapter, messages, out),
             daemon=True,
         )
         worker.start()
@@ -174,25 +193,31 @@ def _stream_answer(user, conversation, user_message):
         worker.join()
 
         answer = "".join(answer_parts)
-        next_seq = conversation.messages.order_by("-seq").first().seq + 1
-        assistant = Message.objects.create(
-            conversation=conversation,
-            seq=next_seq,
-            role=Message.Role.ASSISTANT,
-            content=answer,
+        message = finalize_assistant_message(
+            conversation,
+            user,
+            matches,
+            answer,
+            usage,
         )
-        UsageRecord.objects.create(
-            user=user,
-            message=assistant,
-            purpose=UsageRecord.Purpose.ASK,
-            provider=usage.get("provider", "gemini"),
-            model=usage.get("model", settings.LLM_MODEL),
-            prompt_tokens=usage["prompt_tokens"],
-            completion_tokens=usage["completion_tokens"],
-            latency_ms=usage["latency_ms"],
-            cost_usd=0,
+        sources = list(
+            message.sources.select_related("chunk__document").all()
+        )  # citations always from stored rows (PRD § 5 step 8)
+        yield _sse(
+            "done",
+            {
+                "conversation_id": conversation.pk,
+                "supported": message.supported,
+                "sources": [
+                    {
+                        "document": source.chunk.document.title,
+                        "page": source.page,
+                        "excerpt": source.excerpt,
+                    }
+                    for source in sources
+                ],
+            },
         )
-        yield _sse("done", {"conversation_id": conversation.pk})
 
     response = StreamingHttpResponse(events(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"
