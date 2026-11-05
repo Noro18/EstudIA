@@ -4,8 +4,9 @@ from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from apps.accounts.tests.factories import UserFactory
-from apps.documents.tests.factories import DocumentFactory, NotebookFactory
-from apps.qa.tests.factories import ConversationFactory, MessageFactory
+from apps.documents.models import Chunk, Document
+from apps.documents.tests.factories import ChunkFactory, DocumentFactory, NotebookFactory
+from apps.qa.tests.factories import ConversationFactory, MessageFactory, MessageSourceFactory
 from apps.documents.services import extract_txt_document
 
 pytestmark = pytest.mark.django_db
@@ -208,3 +209,58 @@ def test_extract_txt_document_creates_page_and_marks_document_ready(monkeypatch)
     assert page.ocr_used is False
     assert document.page_count == 1
     assert document.status == "ready"
+
+
+def test_delete_document_removes_document_and_chunks(logged_in):
+    client, user = logged_in
+    document = DocumentFactory(user=user, title="Bad scan.pdf", status="failed")
+    chunk = ChunkFactory(document=document)
+
+    response = client.delete(reverse("document_detail", args=(document.pk,)))
+
+    assert response.status_code == 200
+    assert not Document.objects.filter(pk=document.pk).exists()
+    assert not Chunk.objects.filter(pk=chunk.pk).exists()
+
+
+def test_delete_document_requires_login(client):
+    document = DocumentFactory()
+
+    response = client.delete(reverse("document_detail", args=(document.pk,)))
+
+    assert response.status_code == 302
+    assert Document.objects.filter(pk=document.pk).exists()
+
+
+def test_delete_document_isolated_from_other_users(logged_in):
+    client, user = logged_in
+    other_document = DocumentFactory()
+
+    response = client.delete(reverse("document_detail", args=(other_document.pk,)))
+
+    assert response.status_code == 404
+    assert Document.objects.filter(pk=other_document.pk).exists()
+
+
+def test_delete_cited_document_fails_with_document_cited(logged_in):
+    client, user = logged_in
+    document = DocumentFactory(user=user, title="Cited.pdf")
+    chunk = ChunkFactory(document=document)
+    MessageSourceFactory(chunk=chunk)
+
+    response = client.delete(reverse("document_detail", args=(document.pk,)))
+
+    assert response.status_code == 409
+    assert b"document_cited" in response.content
+    assert Document.objects.filter(pk=document.pk).exists()
+
+
+def test_document_card_renders_delete_button(logged_in):
+    client, user = logged_in
+    notebook = NotebookFactory(user=user)
+    DocumentFactory(notebook=notebook, user=user, title="Notes.txt", status="ready", page_count=2)
+
+    response = client.get(reverse("notebook_workspace", args=(notebook.pk,)))
+
+    assert response.status_code == 200
+    assert b"hx-delete" in response.content
