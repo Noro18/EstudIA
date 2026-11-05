@@ -11,6 +11,7 @@
          hx-target="#docs"
          hx-swap="beforeend"
          hx-on::after-request="this.value=''">
+
   <button class="up quiz-btn" id="quiz" type="button"
           hx-post="{% url 'notebook_quiz_start' notebook.pk %}"
           hx-target="#quiz-area"

@@ -34,7 +34,7 @@ def _seed_notebook(nb_chunks=2):
 
 
 def _patch(monkeypatch, fake):
-    monkeypatch.setattr("apps.qa.services.GeminiAdapter", lambda: fake)
+    monkeypatch.setattr("apps.qa.services.build_adapter", lambda: fake)
 
 
 @pytest.mark.django_db
