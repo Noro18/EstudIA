@@ -99,12 +99,53 @@ def _usage_from_metadata(metadata):
 
 
 def build_adapter():
-    """Create the adapter named by LLM_PROVIDER (default: gemini)."""
-    if settings.LLM_PROVIDER == "openai_compat":
+    """Create the configured primary adapter and optional fallback adapter."""
+    primary = _build_provider_adapter(settings.LLM_PROVIDER, settings.LLM_MODEL)
+    if settings.LLM_FALLBACK_PROVIDER and settings.LLM_FALLBACK_MODEL:
+        fallback = _build_provider_adapter(
+            settings.LLM_FALLBACK_PROVIDER,
+            settings.LLM_FALLBACK_MODEL,
+        )
+        return FallbackAdapter(primary, fallback)
+    return primary
+
+
+def _build_provider_adapter(provider, model):
+    if provider == "openai_compat":
         from apps.llm.openai_compat import OpenAICompatAdapter
 
-        return OpenAICompatAdapter()
-    return GeminiAdapter()
+        return OpenAICompatAdapter(model=model)
+    return GeminiAdapter(model=model)
+
+
+class FallbackAdapter:
+    """Try the primary provider, then the configured provider fallback."""
+
+    def __init__(self, primary, fallback):
+        self.primary = primary
+        self.fallback = fallback
+
+    def generate(self, messages, stream=False):
+        if stream:
+            return self._stream(messages)
+        try:
+            return self.primary.generate(messages, stream=False)
+        except LLMUnavailable as exc:
+            logger.warning("Primary LLM failed; using fallback provider (%s)", exc)
+            return self.fallback.generate(messages, stream=False)
+
+    def _stream(self, messages):
+        emitted_text = False
+        try:
+            for part in self.primary.generate(messages, stream=True):
+                if part.get("text"):
+                    emitted_text = True
+                yield part
+        except LLMUnavailable as exc:
+            if emitted_text:
+                raise
+            logger.warning("Primary streaming LLM failed; using fallback provider (%s)", exc)
+            yield from self.fallback.generate(messages, stream=True)
 
 
 class GeminiAdapter:

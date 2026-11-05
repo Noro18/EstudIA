@@ -15,7 +15,7 @@ from django.conf import settings
 from django.db import transaction
 
 from apps.documents.models import Document
-from apps.llm.adapter import GeminiAdapter, LLMUnavailable
+from apps.llm.adapter import LLMUnavailable, build_adapter
 from apps.llm.models import UsageRecord
 
 from .models import QuizQuestion, QuizChunkUsage
@@ -241,7 +241,7 @@ def generate_quiz(notebook):
         + "\n\n"
         + "\n\n".join(f"[{index}] {chunk.text}" for index, chunk in enumerate(chunks, start=1))
     )
-    result = GeminiAdapter().generate(
+    result = build_adapter().generate(
         [{"role": "user", "parts": [{"text": prompt}]}],
         stream=False,
     )
@@ -282,4 +282,3 @@ def generate_quiz(notebook):
             ignore_conflicts=True,
         )
     return QuizQuestion.objects.filter(notebook=notebook).order_by("order")
-

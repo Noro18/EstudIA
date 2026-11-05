@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, render
 import mistune
 from django.utils.safestring import mark_safe
 
-from apps.llm.adapter import GeminiAdapter, LLMUnavailable
+from apps.llm.adapter import LLMUnavailable, build_adapter
 from apps.qa.services import finalize_assistant_message
 from apps.rag.prompting import build_grounded_messages
 from apps.rag.retrieval import retrieve_hybrid_chunks
@@ -158,7 +158,7 @@ def _stream_answer(user, conversation, user_message):
             return
 
         messages = build_grounded_messages(user_message.content, matches)
-        adapter = GeminiAdapter()
+        adapter = build_adapter()
         answer_parts = []
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "latency_ms": 0}
         out = queue.Queue()
