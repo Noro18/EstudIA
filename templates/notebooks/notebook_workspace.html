@@ -12,15 +12,6 @@
          hx-swap="beforeend"
          hx-on::after-request="this.value=''">
 
-         <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" multiple hidden
-         hx-trigger="change"
-         hx-post="{% url 'notebook_upload_document' notebook.pk %}"
-         hx-encoding="multipart/form-data"
-         hx-target="#docs"
-         hx-swap="beforeend"
-         hx-on::after-request="this.value=''">
-
-  <!--  👇 ADD THIS BUTTON HERE -->
   <button class="up quiz-btn" id="quiz" type="button"
           hx-post="{% url 'notebook_quiz_start' notebook.pk %}"
           hx-target="#quiz-area"
@@ -66,10 +57,6 @@
     </span>
   </div>
 
-  <form class="bar" id="ask-form" method="post" action="{% url 'notebook_ask' notebook.pk %}">
-
-    
-  </div>
   <form class="bar" id="ask-form" method="post" action="{% url 'notebook_ask' notebook.pk %}">
     <input type="hidden" id="conversation-id" name="conversation_id" value="{% if conversation %}{{ conversation.pk }}{% endif %}">
     <textarea id="q" name="question" rows="1" placeholder="Ask about your document…"></textarea>
