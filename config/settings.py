@@ -122,3 +122,5 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "loggers": {"apps.documents": {"handlers": ["console"], "level": "INFO", "propagate": False}},
 }
+
+LOGIN_REDIRECT_URL = "/notebooks/"
