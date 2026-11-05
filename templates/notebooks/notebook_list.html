@@ -1,39 +1,26 @@
 {% extends "base.html" %}
 {% block title %}My notebooks — StudIA{% endblock %}
 {% block content %}
-<div class="list-page">
-  <div class="list-hero">
-    <div class="list-intro">
-      <h1>My notebooks</h1>
-      <p class="hint">Pick a notebook to keep studying, or start a new one.</p>
-    </div>
-    <form class="nb-create" method="post" action="{% url 'notebook_list' %}">
-      {% csrf_token %}
-      <label class="hint" for="nb-new-title">New notebook</label>
-      <div class="nb-create-row">
-        <input id="nb-new-title" type="text" name="title" placeholder="Notebook title" required>
-        <button class="send" type="submit">Create</button>
-      </div>
-    </form>
-  </div>
-  <div class="list-grid">
+<main class="toc">
+  <h1 class="toc-title">My notebooks</h1>
+  <form class="toc-create" method="post" action="{% url 'notebook_list' %}">
+    {% csrf_token %}
+    <label class="visually-hidden" for="toc-title-input">New notebook title</label>
+    <input id="toc-title-input" type="text" name="title" placeholder="New notebook title" required>
+    <button class="toc-create-btn" type="submit">Create notebook</button>
+  </form>
+  <ul class="toc-list">
     {% for notebook in notebooks %}
-      <a class="nb-card" href="{% url 'notebook_workspace' notebook.pk %}" aria-label="Open {{ notebook.title }}">
-        <span class="nb-card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="5" y="3" width="14" height="18" rx="2"/>
-            <path d="M9 3v18"/>
-          </svg>
-        </span>
-        <span class="nb-card-title">{{ notebook.title }}</span>
-        <span class="nb-card-meta">{{ notebook.document_count }} document{{ notebook.document_count|pluralize }}</span>
-      </a>
+      <li>
+        <a class="toc-row" href="{% url 'notebook_workspace' notebook.pk %}" aria-label="Open {{ notebook.title }}">
+          <span class="toc-bar" aria-hidden="true"></span>
+          <span class="toc-name">{{ notebook.title }}</span>
+          <span class="toc-open">Open</span>
+        </a>
+      </li>
     {% empty %}
+      <li class="toc-empty">No notebooks yet. Type a title above and create one to start adding materials.</li>
     {% endfor %}
-    <button class="nb-new-card" type="button" onclick="document.getElementById('nb-new-title').focus()">
-      <span class="nb-new-plus" aria-hidden="true">+</span>
-      New notebook
-    </button>
-  </div>
-</div>
+  </ul>
+</main>
 {% endblock content %}

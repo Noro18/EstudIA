@@ -60,7 +60,7 @@ def test_workspace_shell_renders_documents_and_history(logged_in):
 
     assert response.status_code == 200
     assert b'nav class="topbar"' in response.content
-    assert b">StudIA<" in response.content
+    assert b'Stud<span class="brand-accent">IA</span>' in response.content
     assert b'nb-select' in response.content
     assert b"Physics 10" in response.content
     assert b"Biology 7" in response.content

@@ -4,12 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block title %}StudIA{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Public+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="{% static 'workspace.css' %}">
 <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 <body>
 <nav class="topbar" aria-label="Primary">
-  <span class="brand">StudIA</span>
+  <span class="brand">Stud<span class="brand-accent">IA</span></span>
   {% if notebook %}
     <div class="nb-menu">
       <button type="button" class="nb-select-btn" id="nb-select" aria-haspopup="true" aria-expanded="false">
@@ -31,20 +34,21 @@
       </form>
     </dialog>
   {% endif %}
-  {% if user.is_authenticated %}
-    <div class="user-menu">
-      <span class="avatar" aria-hidden="true">{{ user.get_username|first|upper }}</span>
-      <span class="user-name">{{ user.get_username }}</span>
+  {% if request.user.is_authenticated %}
+    <div class="topbar-end">
+      <span class="topbar-user">{{ request.user.username }}</span>
       <form method="post" action="{% url 'logout' %}">
         {% csrf_token %}
-        <button class="logout" type="submit">Log out</button>
+        <button class="logout-btn" type="submit">Log out</button>
       </form>
     </div>
   {% else %}
     <a class="login-link" href="{% url 'login' %}">Log in</a>
   {% endif %}
 </nav>
+<div class="shell">
 {% block content %}{% endblock %}
+</div>
 <script src="{% static 'htmx.min.js' %}"></script>
 <script src="{% static 'workspace.js' %}"></script>
 </body>
