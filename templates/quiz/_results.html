@@ -1,5 +1,6 @@
-<div class="quiz">
+<div class="msg ai quiz-msg">
   <p class="quiz-score{% if score == total %} quiz-perfect{% endif %}">Score: {{ score }}/{{ total }}</p>
+
   {% for row in rows %}
     <div class="quiz-card{% if row.is_correct %} card-correct{% else %} card-wrong{% endif %}">
       <p class="quiz-verdict">{% if row.is_correct %}✓ Correct{% else %}✗ Wrong{% endif %}</p>
@@ -9,6 +10,19 @@
       <p class="quiz-source">Source: {{ row.question.chunk.document.title }} · page {{ row.question.chunk.page_number }} · “{{ row.question.chunk.text|truncatechars:120 }}”</p>
     </div>
   {% endfor %}
+
+  {% if conversation %}
+    <button class="up" type="button"
+            hx-get="{% url 'notebook_workspace' notebook.pk %}"
+            hx-target="body"
+            hx-swap="innerHTML">
+      Continue chat
+    </button>
+  {% endif %}
+
   <button class="up" type="button" hx-post="{% url 'notebook_quiz_start' notebook.pk %}"
-          hx-target="#quiz-area" hx-swap="innerHTML">Quiz again</button>
+          hx-target="#quiz-area" hx-swap="innerHTML"
+          hx-include="#conversation-id">
+    Quiz again
+  </button>
 </div>

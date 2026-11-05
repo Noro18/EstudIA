@@ -40,6 +40,8 @@ class Message(models.Model):
     supported = models.BooleanField(null=True, blank=True)
     rewritten_text = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    kind = models.CharField(max_length=20, default="text")
+    payload = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ["seq"]

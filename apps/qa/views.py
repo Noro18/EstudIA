@@ -11,11 +11,13 @@ from django.http import HttpResponseBadRequest, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, render
 import mistune
 from django.utils.safestring import mark_safe
+from django.db.models import Count, Max, ProtectedError
 
 from apps.llm.adapter import LLMUnavailable, build_adapter
 from apps.qa.services import finalize_assistant_message
 from apps.rag.prompting import build_grounded_messages
 from apps.rag.retrieval import retrieve_hybrid_chunks
+from apps.qa.models import Conversation, Message
 
 from .models import Conversation, Message, QuizQuestion
 from .services import QuizNotReady, generate_quiz
@@ -241,24 +243,56 @@ def notebook_quiz_start(request, pk):
     notebook = get_object_or_404(request.user.notebooks, pk=pk)
     if request.method != "POST":
         return HttpResponseBadRequest("POST required")
+ 
+    # NEW: optional conversation the quiz belongs to
+    conversation = None
+    raw_id = request.POST.get("conversation_id", "").strip()
+    if raw_id:
+        if not raw_id.isdigit():
+            return HttpResponseBadRequest("Invalid conversation_id")
+        conversation = get_object_or_404(
+            Conversation, pk=int(raw_id), notebook=notebook, user=request.user
+        )
+ 
     try:
         questions = generate_quiz(notebook)
     except QuizNotReady as exc:
         return _quiz_error(request, exc.error_code, str(exc))
     except LLMUnavailable as exc:
         return _quiz_error(request, getattr(exc, "error_code", "llm_unavailable"), str(exc))
-    return render(request, "quiz/_cards.html", {"notebook": notebook, "questions": questions})
-
-
+    return render(
+        request,
+        "quiz/_cards.html",
+        {"notebook": notebook, "questions": questions, "conversation": conversation},  # NEW: conversation
+    )
+ 
+ 
 @login_required
 def notebook_quiz_submit(request, pk):
-    """Score the submitted quiz locally — comparison, not a second LLM call."""
     notebook = get_object_or_404(request.user.notebooks, pk=pk)
     if request.method != "POST":
         return HttpResponseBadRequest("POST required")
-    questions = list(QuizQuestion.objects.filter(notebook=notebook).order_by("order"))
+ 
+    conversation = None
+    raw_id = request.POST.get("conversation_id", "").strip()
+    if raw_id:
+        if not raw_id.isdigit():
+            return HttpResponseBadRequest("Invalid conversation_id")
+        conversation = get_object_or_404(
+            Conversation, pk=int(raw_id), notebook=notebook, user=request.user
+        )
+ 
+    questions = list(
+        QuizQuestion.objects.filter(notebook=notebook)
+        .select_related("chunk__document")
+        .order_by("order")
+    )
     if not questions:
         return _quiz_error(request, "document_not_ready", "No active quiz for this notebook.")
+    # NEW: the quiz on screen was replaced by a newer one
+    if not any(f"answer_{q.pk}" in request.POST for q in questions):
+        return _quiz_error(request, "quiz_expired", "This quiz was replaced. Please start a new one.")
+ 
     rows, correct = [], 0
     for question in questions:
         picked = request.POST.get(f"answer_{question.pk}", "")
@@ -272,9 +306,52 @@ def notebook_quiz_submit(request, pk):
             "correct_text": question.choices.get(question.correct_letter, ""),
             "is_correct": is_correct,
         })
+ 
+    # NEW: record a summary message in the conversation
+        # NEW: record a summary message in the conversation
+    if conversation:
+        last_seq = Message.objects.filter(conversation=conversation).aggregate(m=Max("seq"))["m"] or 0
+        answers_text = ", ".join(
+            f"{number}. {row['picked'] or '-'}" for number, row in enumerate(rows, start=1)
+        )
+
+        entries = [
+            {
+                "question": r["question"].question,
+                "choices": r["question"].choices,
+                "picked": r["picked"],
+                "correct": r["question"].correct_letter,
+                "source": f"{r['question'].chunk.document.title} · page {r['question'].chunk.page_number}",
+            }
+            for r in rows
+        ]
+
+        with transaction.atomic():
+            Message.objects.create(
+                conversation=conversation,
+                seq=last_seq + 1,
+                role=Message.Role.USER,
+                content=f"Quiz answers: {answers_text}",
+                kind="quiz_result",
+                payload={"score": correct, "total": len(questions), "entries": entries},
+            )
+            Message.objects.create(
+                conversation=conversation,
+                seq=last_seq + 2,
+                role=Message.Role.ASSISTANT,
+                content=f"Quiz result: {correct} of {len(questions)} correct.",
+            )
+ 
     return render(
         request,
         "quiz/_results.html",
-        {"notebook": notebook, "score": correct, "total": len(questions), "rows": rows},
+        {
+            "notebook": notebook,
+            "conversation": conversation,
+            "score": correct,
+            "total": len(questions),
+            "rows": rows,
+        },
     )
+
 

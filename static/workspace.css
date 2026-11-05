@@ -220,4 +220,8 @@ button:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid va
   .nb-panel,.jump-latest,.nb-dialog{box-shadow:0 10px 30px rgba(0,0,0,.45)}
   .nb-dialog::backdrop{background:rgba(0,0,0,.55)}
 }
+.quiz-msg { max-width: 100%; white-space: normal; }
 
+.quiz-option.is-correct { border-color: #16A34A; background: #F0FDF4; }
+.quiz-option.is-wrong   { border-color: #DC2626; background: #FEF2F2; }
+.quiz-tag { margin-left: auto; padding-left: 12px; font-size: 13px; font-weight: 600; }
