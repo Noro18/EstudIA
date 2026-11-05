@@ -3,6 +3,7 @@ import os
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest
+from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.safestring import mark_safe
 import mistune
@@ -36,7 +37,11 @@ def notebook_list(request):
             title=request.POST["title"].strip(),
         )
         return redirect("notebook_workspace", pk=notebook.pk)
-    return render(request, "notebooks/notebook_list.html", {"notebooks": request.user.notebooks.all()})
+    return render(
+        request,
+        "notebooks/notebook_list.html",
+        {"notebooks": request.user.notebooks.annotate(document_count=Count("documents"))},
+    )
 
 
 @login_required
