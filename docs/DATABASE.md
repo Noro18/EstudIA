@@ -353,6 +353,21 @@ before every ask / summary / study_questions request:
 
 `ingest_embedding` and `query_embedding` never count toward the quota: they are calls to the local embedding model (free), not the hosted LLM the quota is there to meter.
 
+### 4.6 Document delete (added Nov 5, PRD § 8 `DELETE /documents/{id}/`)
+
+```text
+DELETE /documents/{id}/  (login_required, owner = request.user)
+  document = get_object_or_404(Document, pk, user)
+  try document.delete()                        # CASCADE → pages, chunks, study_questions
+  except ProtectedError:                       # a chunk is cited (MessageSource/QuizQuestion PROTECT)
+      → 409 error fragment document_cited, nothing deleted
+  on success:
+      uploaded_file deleted from MEDIA storage
+      → 200 empty body; HTMX hx-swap=outerHTML removes the card
+```
+
+Deleting one document never touches its notebook's conversations (D9); already-written citations survive only while their chunks do — hence the PROTECT refusal instead of silent citation loss.
+
 ---
 
 ## 5. Not modeled on purpose
