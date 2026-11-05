@@ -135,3 +135,12 @@ class QuizQuestion(models.Model):
     def __str__(self):
         return f"Quiz question #{self.order} (notebook={self.notebook_id})"
 
+class QuizChunkUsage(models.Model):
+    chunk = models.OneToOneField(
+        "documents.Chunk",         
+        on_delete=models.CASCADE,
+        related_name="quiz_usage",
+    )
+    used_at = models.DateTimeField(auto_now_add=True)
+
+

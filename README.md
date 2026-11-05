@@ -16,6 +16,10 @@ PostgreSQL (+ the pgvector extension) runs in Docker, defined in
 
 ```bash
 sudo docker compose up -d
+
+# Ou ba version tuan sira 
+
+sudo docker-compose up -d
 ```
 
 Created `studia-pg` earlier with a manual `docker run`? Hand it over to Compose

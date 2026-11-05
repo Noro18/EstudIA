@@ -15,5 +15,9 @@
       <span class="status-label">Failed</span>
     {% endif %}
   </small>
-  <button type="button" aria-label="Remove {{ document.title }}" title="Deleting needs a contract endpoint — coming with a future spec">×</button>
+  <button type="button" aria-label="Remove {{ document.title }}" title="Remove document"
+          hx-delete="{% url 'document_detail' document.pk %}"
+          hx-target="closest li"
+          hx-swap="outerHTML"
+          hx-confirm="Remove this document? This cannot be undone.">×</button>
 </li>
