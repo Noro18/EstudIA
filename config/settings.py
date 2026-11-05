@@ -74,6 +74,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+LOGOUT_REDIRECT_URL = "/accounts/login/"
+
 LANGUAGE_CODE = "en"
 TIME_ZONE = "Asia/Dili"
 USE_I18N = True
@@ -92,7 +94,7 @@ EMBEDDING_DIM = int(os.environ.get("EMBEDDING_DIM", "1024"))
 LOG_EMBEDDING_VECTORS = os.environ.get("LOG_EMBEDDING_VECTORS", "0") == "1"
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
-LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.1-flash")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.1-flash-lite")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 OPENAI_COMPAT_BASE_URL = os.environ.get("OPENAI_COMPAT_BASE_URL", "").rstrip("/")
 OPENAI_COMPAT_API_KEY = os.environ.get("OPENAI_COMPAT_API_KEY", "")
@@ -104,6 +106,7 @@ LLM_FALLBACK_PROVIDER = os.environ.get("LLM_FALLBACK_PROVIDER", "")
 LLM_FALLBACK_MODEL = os.environ.get("LLM_FALLBACK_MODEL", "")
 MAX_UPLOAD_SIZE_BYTES = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", str(20 * 1024 * 1024)))
 QUIZ_QUESTION_COUNT = int(os.environ.get("QUIZ_QUESTION_COUNT", "5"))
+QUIZ_LANGUAGE = os.environ.get("QUIZ_LANGUAGE", "Tetum")
 
 Q_CLUSTER = {
     "name": "studia",
