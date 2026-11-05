@@ -2,7 +2,8 @@ import os
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseBadRequest
+from django.db.models import ProtectedError
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.safestring import mark_safe
 import mistune
@@ -13,6 +14,31 @@ from .models import Document, Notebook
 from .tasks import enqueue_document_ingestion
 
 render_markdown = mistune.create_markdown(escape=True)
+
+
+def _delete_document(request, document):
+    """DELETE /documents/{id}/ — removes the document and its chunks/pages.
+
+    A document whose chunks are already cited (MessageSource / QuizQuestion
+    PROTECT) fails loudly with `document_cited`; nothing is deleted then."""
+    storage = document.uploaded_file.storage
+    file_name = document.uploaded_file.name
+    try:
+        document.delete()
+    except ProtectedError:
+        return render(
+            request,
+            "documents/_error_fragment.html",
+            {
+                "error_code": "document_cited",
+                "message": "This document is cited in an answer and cannot be deleted.",
+            },
+            status=409,
+        )
+    if file_name:
+        storage.delete(file_name)
+    # Empty body + hx-swap="outerHTML" removes the card from the list.
+    return HttpResponse(status=200)
 
 
 def _history_rows(messages):
@@ -63,6 +89,9 @@ def notebook_workspace(request, pk):
 @login_required
 def document_detail(request, pk):
     document = get_object_or_404(Document, pk=pk, user=request.user)
+
+    if request.method == "DELETE":
+        return _delete_document(request, document)
 
     # HTMX polling requests get the card partial; direct navigation gets full page
     if request.headers.get("HX-Request"):

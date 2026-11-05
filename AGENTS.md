@@ -42,9 +42,10 @@ If the PRD and the implemented code disagree, treat it as a bug: report it, do n
 |---|---|---|
 | `POST /documents/` | document create view | Returns id and status `processing`. |
 | `GET /documents/{id}/` | document detail view | Status must be one of `processing`, `ready`, `failed`, plus failure reason (e.g. `scanned_no_text`). |
+| `DELETE /documents/{id}/` | document detail view (same URL, DELETE method) | Empty 200 removes the card client-side; 409 + `document_cited` when chunks are already cited (PROTECT). |
 | `POST /documents/{id}/ask/` | ask view (HTML partial, or SSE stream when `stream=true`) | Conceptual response data: `answer` (always Tetum, language `tet`), `supported`, `conversation_id`, `sources`. Rendered as HTML fragments; over SSE the final event carries them. |
 | `sources: chunk_id, document, page, excerpt` | stored chunk metadata | Built **only** from stored metadata after validating the chunk numbers the model used. Never accepted from model output. |
-| Error `code` + `message` | standard error fragment | Codes only from PRD § 8: `document_not_ready`, `document_failed`, `unsupported_type`, `file_too_large`, `rate_limited`, `llm_unavailable`. Code embedded as `data-error-code` for tests. |
+| Error `code` + `message` | standard error fragment | Codes only from PRD § 8: `document_not_ready`, `document_failed`, `unsupported_type`, `file_too_large`, `rate_limited`, `llm_unavailable`, `document_cited`. Code embedded as `data-error-code` for tests. |
 | Evaluation harness | calls the service layer directly (no HTTP) | Reads `answer`, `supported`, `sources` as Python data. |
 | LLM adapter `generate(messages, stream)` | single adapter module | Provider/model from env vars; retry then fallback; logs tokens, latency, cost. |
 

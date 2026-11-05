@@ -215,6 +215,7 @@ Agreed on Day 1 (JSON form) and **re-scoped on Oct 21** to HTML-over-the-wire af
 | `GET /notebooks/{id}/` | Notebook detail: its documents (with processing status) + its conversations (page). |
 | `POST /notebooks/{id}/documents/` | Upload a document into the notebook. Returns id and status 'processing' (rendered fragment / redirect). |
 | `GET /documents/{id}/` | Document metadata, status (processing, ready, failed), page count, failure reason (for example scanned\_no\_text). |
+| `DELETE /documents/{id}/` | Delete a document (added Nov 5): removes the document and its chunks/pages/file. Returns an empty fragment (the card is removed client-side). If a chunk is already cited (`MessageSource` / `QuizQuestion` PROTECT), fails loudly with `document_cited` and deletes nothing. |
 | `GET /documents/{id}/sources/` | Document metadata and available source information. |
 | `POST /notebooks/{id}/ask/` | Ask a question across the notebook's documents. Optional conversation\_id; creates a notebook conversation if omitted. Returns a rendered answer partial, or an SSE stream when `stream=true`. |
 | `GET /conversations/{id}/` | Conversation history: messages with sources, for reopening a chat. |
@@ -231,7 +232,7 @@ Agreed on Day 1 (JSON form) and **re-scoped on Oct 21** to HTML-over-the-wire af
 
 Example question: *Saida mak ideia prinsipál husi dokumentu ne'e?*
 
-**Error format:** the same six codes (`document_not_ready`, `document_failed`, `unsupported_type`, `file_too_large`, `rate_limited`, `llm_unavailable`) rendered as an error fragment showing the message; the code is embedded (e.g. as a `data-error-code` attribute) so tests and the harness can assert on it. With Notebooks, `document_not_ready` fires when **nothing in the notebook is ready yet**; ready documents answer while others are still processing.
+**Error format:** the same six codes (`document_not_ready`, `document_failed`, `unsupported_type`, `file_too_large`, `rate_limited`, `llm_unavailable`) rendered as an error fragment showing the message; the code is embedded (e.g. as a `data-error-code` attribute) so tests and the harness can assert on it. With Notebooks, `document_not_ready` fires when **nothing in the notebook is ready yet**; ready documents answer while others are still processing. **Delete (added Nov 5):** `document_cited` — the document's chunks are already cited by a stored answer, so `DELETE /documents/{id}/` refuses with 409 and deletes nothing (PROTECT, no silent citation loss).
 
 ## 9. Cost, sustainability, and the judges' questions
 
@@ -363,6 +364,7 @@ Team members have other commitments, so keep ownership independent, hold a short
 | **Re-assign work areas A-D across the 3 remaining team members (backend and frontend roles are unassigned)** | Team | TBD |
 | **Quiz mode (optional § 3) built after feature freeze — DECIDED Oct 30 by the user.** Approvals: user+build the minimal quiz set (generation from stored chunks, local scoring, no attempts table, question count via `QUIZ_QUESTION_COUNT` default 5, synchronous generation, `QuizQuestion` as a new model, UI in English, question content in English). No separate quiz-related endpoints cost model; contract recorded in § 8. Retrieval (PRD § 5 hybrid) is still a separate open item — quiz generation does not depend on it because it reads stored chunks directly. | User | done Oct 30 |
 | **Citations end-to-end — DECIDED Nov 4 by the user.** Spec 13 approved (`.opencode/specs/13_CITATIONS.md`), C1–C8 as drafted: trailing `Used chunks:` marker parsed (never a second LLM call), `supported` computed mechanically (validated citations ≥ 1), ungrounded answers kept honest (`supported=False` + warning, never invented citations), marker stripped from stored content, invalid numbers dropped, sources ride the existing SSE `done` event, CSS-only `<details>` UI, stored page/excerpt snapshots. No schema change — `MessageSource` and `Message.supported` already existed. | User | done Nov 4 |
+| **Document delete via the card × button — DECIDED Nov 5 by the user.** `DELETE /documents/{id}/` added to § 8 (HTML partial: empty body removes the card; native `hx-confirm` prompt). Cited chunks block deletion loudly with new error code `document_cited` (409, `MessageSource`/`QuizQuestion` PROTECT — no silent citation loss). Uploaded file removed from media storage on success. Privacy item from § 9.6 ("allow users to delete their documents") now satisfied. | User | done Nov 5 |
 | Competition rules: is a hosted API allowed, and are there connectivity, offline, or data requirements? | Noro | Oct 19 |
 | Frontend approach — **DECIDED Oct 21: Django templates + HTMX** (team has no React experience; simpler deploy for 3 members) | Noro | ~~Oct 19~~ done |
 | Provisional model | TBD | Oct 19 |
