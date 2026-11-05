@@ -29,9 +29,6 @@
           hx-disabled-elt="this">Quiz me</button>
 
   <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
-
-
-  <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
   <ul class="docs" id="docs">
     {% for doc in notebook.documents.all %}
       {% include "documents/_document_card.html" with document=doc notebook=notebook %}

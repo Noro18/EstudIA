@@ -31,6 +31,18 @@
       </form>
     </dialog>
   {% endif %}
+  {% if user.is_authenticated %}
+    <div class="user-menu">
+      <span class="avatar" aria-hidden="true">{{ user.get_username|first|upper }}</span>
+      <span class="user-name">{{ user.get_username }}</span>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button class="logout" type="submit">Log out</button>
+      </form>
+    </div>
+  {% else %}
+    <a class="login-link" href="{% url 'login' %}">Log in</a>
+  {% endif %}
 </nav>
 {% block content %}{% endblock %}
 <script src="{% static 'htmx.min.js' %}"></script>
