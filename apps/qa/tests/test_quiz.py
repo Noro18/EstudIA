@@ -7,7 +7,7 @@ from apps.documents.models import Document
 from apps.documents.tests.factories import ChunkFactory, DocumentFactory, NotebookFactory
 from apps.llm.adapter import LLMUnavailable
 from apps.llm.models import UsageRecord
-from apps.qa.models import QuizQuestion
+from apps.qa.models import Conversation, Message, QuizQuestion
 from apps.qa.tests.factories import QuizQuestionFactory
 
 
@@ -113,3 +113,58 @@ def test_submit_scores_locally(client):
     response = client.post(reverse("notebook_quiz_submit", args=[notebook.pk]), data)
     assert response.status_code == 200
     assert "Score: 1/2" in response.content.decode()
+
+@pytest.mark.django_db
+def test_submit_saves_result_to_existing_conversation(client):
+    notebook = NotebookFactory()
+    conversation = Conversation.objects.create(
+        notebook=notebook,
+        user=notebook.user,
+    )
+    previous_message = Message.objects.create(
+        conversation=conversation,
+        seq=1,
+        role=Message.Role.USER,
+        content="Pesan dari percakapan sebelumnya",
+    )
+    other_conversation = Conversation.objects.create(
+        notebook=notebook,
+        user=notebook.user,
+    )
+
+    questions = [
+        QuizQuestionFactory(
+            notebook=notebook,
+            chunk__document__notebook=notebook,
+            chunk__document__user=notebook.user,
+            correct_letter="A",
+        ),
+        QuizQuestionFactory(
+            notebook=notebook,
+            chunk__document__notebook=notebook,
+            chunk__document__user=notebook.user,
+            correct_letter="B",
+        ),
+    ]
+
+    client.force_login(notebook.user)
+    response = client.post(
+        reverse("notebook_quiz_submit", args=[notebook.pk]),
+        {
+            "conversation_id": conversation.pk,
+            f"answer_{questions[0].pk}": "A",
+            f"answer_{questions[1].pk}": "A",
+        },
+    )
+
+    assert response.status_code == 200
+    messages = list(conversation.messages.order_by("seq"))
+    assert messages[0] == previous_message
+    assert len(messages) == 3
+    assert messages[1].role == Message.Role.USER
+    assert messages[1].content.startswith("Quiz answers")
+    assert messages[2].role == Message.Role.ASSISTANT
+    assert messages[2].content == "Quiz result: 1 of 2 correct."
+
+
+    

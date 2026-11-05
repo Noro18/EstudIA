@@ -11,23 +11,12 @@
          hx-target="#docs"
          hx-swap="beforeend"
          hx-on::after-request="this.value=''">
-
-         <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" multiple hidden
-         hx-trigger="change"
-         hx-post="{% url 'notebook_upload_document' notebook.pk %}"
-         hx-encoding="multipart/form-data"
-         hx-target="#docs"
-         hx-swap="beforeend"
-         hx-on::after-request="this.value=''">
-
-  <!--  👇 ADD THIS BUTTON HERE -->
   <button class="up quiz-btn" id="quiz" type="button"
           hx-post="{% url 'notebook_quiz_start' notebook.pk %}"
           hx-target="#quiz-area"
           hx-swap="innerHTML"
           hx-indicator="#quiz-loading"
           hx-disabled-elt="this">Quiz me</button>
-
   <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
   <ul class="docs" id="docs">
     {% for doc in notebook.documents.all %}
@@ -36,10 +25,10 @@
       <li class="empty">No documents yet</li>
     {% endfor %}
   </ul>
-  {% if conversations %}
+  {% if notebook.conversations.exists %}
     <p class="hint">Conversations</p>
     <ul class="docs">
-      {% for conv in conversations %}
+      {% for conv in notebook.conversations.all %}
         <li><a class="doc" href="{% url 'conversation_detail' conv.pk %}">Conversation #{{ conv.pk }}</a></li>
       {% endfor %}
     </ul>
@@ -50,7 +39,11 @@
   <div class="feed" id="feed" aria-live="polite">
     {% if conversation %}
       {% for row in rows %}
-        <div class="msg {% if row.message.role == 'user' %}user{% else %}ai{% endif %}">{% if row.html %}{{ row.html }}{% else %}{{ row.message.content }}{% endif %}{% if row.message.role == 'assistant' %}{% include "qa/_message_sources.html" with message=row.message %}{% endif %}</div>
+        {% if row.message.kind == 'quiz_result' %}
+          <div class="msg ai quiz-msg">{% include "quiz/_review.html" with data=row.message.payload %}</div>
+        {% else %}
+          <div class="msg {% if row.message.role == 'user' %}user{% else %}ai{% endif %}">{% if row.html %}{{ row.html }}{% else %}{{ row.message.content }}{% endif %}{% if row.message.role == 'assistant' %}{% include "qa/_message_sources.html" with message=row.message %}{% endif %}</div>
+        {% endif %}
       {% endfor %}
     {% else %}
       <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
@@ -67,10 +60,7 @@
   </div>
 
   <form class="bar" id="ask-form" method="post" action="{% url 'notebook_ask' notebook.pk %}">
-
-    
-  </div>
-  <form class="bar" id="ask-form" method="post" action="{% url 'notebook_ask' notebook.pk %}">
+    {% csrf_token %}
     <input type="hidden" id="conversation-id" name="conversation_id" value="{% if conversation %}{{ conversation.pk }}{% endif %}">
     <textarea id="q" name="question" rows="1" placeholder="Ask about your document…"></textarea>
     <button class="send" id="send" type="submit">Send</button>

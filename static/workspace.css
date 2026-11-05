@@ -176,4 +176,8 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outli
   margin: 0 auto;
   padding: 48px 24px 64px;
 }
+.quiz-msg { max-width: 100%; white-space: normal; }
 
+.quiz-option.is-correct { border-color: #16A34A; background: #F0FDF4; }
+.quiz-option.is-wrong   { border-color: #DC2626; background: #FEF2F2; }
+.quiz-tag { margin-left: auto; padding-left: 12px; font-size: 13px; font-weight: 600; }
