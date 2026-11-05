@@ -18,7 +18,7 @@ from apps.documents.models import Document
 from apps.llm.adapter import GeminiAdapter, LLMUnavailable
 from apps.llm.models import UsageRecord
 
-from .models import QuizQuestion
+from .models import QuizQuestion, QuizChunkUsage
 
 logger = logging.getLogger(__name__)
 
@@ -167,9 +167,15 @@ class QuizNotReady(Exception):
 
 
 def _take_chunks(notebook, count):
-    """Pick `count` chunks from ready documents, spread round-robin across them."""
+    """Pick `count` chunks from ready documents, spread round-robin across them.
+
+    Chunks already used in an earlier quiz are skipped.
+    """
     documents = notebook.documents.filter(status=Document.Status.READY).order_by("created_at")
-    queues = [list(doc.chunks.order_by("order_index")) for doc in documents]
+    queues = [
+        list(doc.chunks.filter(quiz_usage__isnull=True).order_by("order_index"))
+        for doc in documents
+    ]
     picked = []
     while len(picked) < count and any(queues):
         for queue in queues:
@@ -217,21 +223,34 @@ def generate_quiz(notebook):
     """Generate one active quiz set for the notebook; replaces the previous set."""
     chunks = _take_chunks(notebook, settings.QUIZ_QUESTION_COUNT)
     if not chunks:
-        raise QuizNotReady("This notebook has no ready documents to make a quiz from.")
-
-    prompt = QUIZ_PROMPT_HEAD + "\n\n".join(
-        f"[{index}] {chunk.text}" for index, chunk in enumerate(chunks, start=1)
+        # NEW: pesan diubah, karena sekarang chunk bisa habis terpakai
+        raise QuizNotReady(
+            "No new material left for a quiz. Add a document, or all current material has already been used."
+        )
+ 
+    # NEW: aturan bahasa soal
+    language_rule = (
+        f"Write every question and every answer choice in {settings.QUIZ_LANGUAGE}. "
+        "Keep the JSON keys in English. Use only facts that appear in the numbered passages."
+    )
+ 
+    prompt = (  # NEW: language_rule disisipkan di antara QUIZ_PROMPT_HEAD dan isi chunk
+        QUIZ_PROMPT_HEAD
+        + "\n\n"
+        + language_rule
+        + "\n\n"
+        + "\n\n".join(f"[{index}] {chunk.text}" for index, chunk in enumerate(chunks, start=1))
     )
     result = GeminiAdapter().generate(
         [{"role": "user", "parts": [{"text": prompt}]}],
         stream=False,
     )
     usage = result["usage"]
-
+ 
     rows = _validated_rows(_parse_quiz_json(result["text"]), chunks)
     if not rows:
         raise LLMUnavailable("Model produced no valid quiz questions.")
-
+ 
     logger.info("Quiz generated: notebook=%s valid=%s/%s", notebook.pk, len(rows), len(chunks))
     UsageRecord.objects.create(
         user=notebook.user,
@@ -243,7 +262,7 @@ def generate_quiz(notebook):
         latency_ms=usage.get("latency_ms", 0),
         cost_usd=0,
     )
-
+ 
     with transaction.atomic():
         QuizQuestion.objects.filter(notebook=notebook).delete()
         questions = [
@@ -258,4 +277,9 @@ def generate_quiz(notebook):
             for index, (chunk, question, choices, letter) in enumerate(rows, start=1)
         ]
         QuizQuestion.objects.bulk_create(questions)
+        QuizChunkUsage.objects.bulk_create(
+            [QuizChunkUsage(chunk=chunk) for chunk, _q, _c, _l in rows],
+            ignore_conflicts=True,
+        )
     return QuizQuestion.objects.filter(notebook=notebook).order_by("order")
+
