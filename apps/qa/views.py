@@ -13,7 +13,7 @@ import mistune
 from django.utils.safestring import mark_safe
 from django.db.models import Count, Max, ProtectedError
 
-from apps.llm.adapter import LLMUnavailable, build_adapter
+from apps.llm.adapter import GeminiAdapter, LLMUnavailable, build_adapter
 from apps.qa.services import finalize_assistant_message
 from apps.rag.prompting import build_grounded_messages
 from apps.rag.retrieval import retrieve_hybrid_chunks
