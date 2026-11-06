@@ -246,3 +246,6 @@ button:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid va
  .list-hero{align-items:stretch}
  .nb-create{width:100%}
 }
+
+.logout{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease}
+.logout:hover{background:var(--soft);border-color:var(--brand);color:var(--brand)}
