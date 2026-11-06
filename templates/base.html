@@ -35,11 +35,12 @@
     </dialog>
   {% endif %}
   {% if request.user.is_authenticated %}
-    <div class="topbar-end">
-      <span class="topbar-user">{{ request.user.username }}</span>
+    <div class="user-menu">
+      <span class="avatar" aria-hidden="true">{{ request.user.username|first|upper }}</span>
+      <span class="user-name">{{ request.user.username }}</span>
       <form method="post" action="{% url 'logout' %}">
         {% csrf_token %}
-        <button class="logout-btn" type="submit">Log out</button>
+        <button class="logout" type="submit">Log out</button>
       </form>
     </div>
   {% else %}
