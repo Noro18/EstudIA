@@ -238,7 +238,7 @@ def test_streamed_ask_done_event_carries_supported_and_sources(monkeypatch, clie
     notebook = NotebookFactory(user=user)
     _, matches = make_matches(notebook)
     monkeypatch.setattr("apps.qa.views.retrieve_hybrid_chunks", lambda *a, **kw: matches)
-    monkeypatch.setattr("apps.qa.views.GeminiAdapter", _FakeAdapter)
+    monkeypatch.setattr("apps.qa.views.build_adapter", lambda: _FakeAdapter())
     client.force_login(user)
 
     response = client.post(
@@ -273,7 +273,7 @@ def test_streamed_ask_done_event_unsupported_when_no_valid_citations(monkeypatch
             return {"text": parts[0], "usage": {}}
 
     monkeypatch.setattr("apps.qa.views.retrieve_hybrid_chunks", lambda *a, **kw: matches)
-    monkeypatch.setattr("apps.qa.views.GeminiAdapter", _JunkAdapter)
+    monkeypatch.setattr("apps.qa.views.build_adapter", lambda: _JunkAdapter())
     client.force_login(user)
 
     response = client.post(
