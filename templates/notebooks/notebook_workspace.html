@@ -16,6 +16,7 @@
           hx-post="{% url 'notebook_quiz_start' notebook.pk %}"
           hx-target="#quiz-area"
           hx-swap="innerHTML"
+          hx-include="#conversation-id"
           hx-indicator="#quiz-loading"
           hx-disabled-elt="this">Kuiz Ha'u</button>
   <p class="hint">PDF, Word (.docx), ka Dokumentu testu. Husu pergunta kona-ba sira iha mensajen.</p>

@@ -12,12 +12,7 @@
   {% endfor %}
 
   {% if conversation %}
-    <button class="up" type="button"
-            hx-get="{% url 'notebook_workspace' notebook.pk %}"
-            hx-target="body"
-            hx-swap="innerHTML">
-      Kontinua mensajen
-    </button>
+    <a class="up" href="{% url 'notebook_workspace' notebook.pk %}">Kontinua mensajen</a>
   {% endif %}
 
   <button class="up" type="button" hx-post="{% url 'notebook_quiz_start' notebook.pk %}"

@@ -284,7 +284,8 @@ document.addEventListener("DOMContentLoaded",initWorkspace);
 document.body.addEventListener("htmx:afterRequest",function(event){
   var path=(event.detail.pathInfo&&event.detail.pathInfo.requestPath)||"";
   if(event.detail.successful&&/\/quiz\//.test(path)){
-    window.setTimeout(function(){scrollToLiveEdge(true)},50);
+    var feed=document.getElementById("feed");
+    if(feed)feed.scrollTo({top:feed.scrollHeight,behavior:"smooth"});
   }
 });
 

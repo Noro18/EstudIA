@@ -115,6 +115,23 @@ def test_submit_scores_locally(client):
     assert "Score: 1/2" in response.content.decode()
 
 @pytest.mark.django_db
+def test_quiz_start_carries_conversation_id(client, monkeypatch):
+    notebook, _ = _seed_notebook()
+    conversation = Conversation.objects.create(notebook=notebook, user=notebook.user)
+    payload = [
+        {"question": "Q?", "choices": {"A": "a", "B": "b", "C": "c", "D": "d"}, "correct": "A", "chunk": 1},
+    ]
+    _patch(monkeypatch, _FakeAdapter(payload))
+    client.force_login(notebook.user)
+    response = client.post(
+        reverse("notebook_quiz_start", args=[notebook.pk]),
+        {"conversation_id": conversation.pk},
+    )
+    assert response.status_code == 200
+    assert f'name="conversation_id" value="{conversation.pk}"' in response.content.decode()
+
+
+@pytest.mark.django_db
 def test_submit_saves_result_to_existing_conversation(client):
     notebook = NotebookFactory()
     conversation = Conversation.objects.create(
@@ -162,9 +179,9 @@ def test_submit_saves_result_to_existing_conversation(client):
     assert messages[0] == previous_message
     assert len(messages) == 3
     assert messages[1].role == Message.Role.USER
-    assert messages[1].content.startswith("Quiz answers")
+    assert messages[1].content.startswith("Resposta Kuiz")
     assert messages[2].role == Message.Role.ASSISTANT
-    assert messages[2].content == "Quiz result: 1 of 2 correct."
+    assert messages[2].content == "Rezultado kuiz: 1 husi 2 Loos."
 
 
     
