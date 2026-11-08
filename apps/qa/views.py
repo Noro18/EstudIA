@@ -331,15 +331,15 @@ def notebook_quiz_submit(request, pk):
                 conversation=conversation,
                 seq=last_seq + 1,
                 role=Message.Role.USER,
-                content=f"Quiz answers: {answers_text}",
+                content=f"Resposta Kuiz: {answers_text}",
                 kind="quiz_result",
-                payload={"score": correct, "total": len(questions), "entries": entries},
+                payload={"pontu": correct, "total": len(questions), "tama": entries},
             )
             Message.objects.create(
                 conversation=conversation,
                 seq=last_seq + 2,
                 role=Message.Role.ASSISTANT,
-                content=f"Quiz result: {correct} of {len(questions)} correct.",
+                content=f"Rezultado kuiz: {correct} husi {len(questions)} Loos.",
             )
  
     return render(

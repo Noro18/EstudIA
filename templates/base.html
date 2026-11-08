@@ -9,6 +9,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Public+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="{% static 'workspace.css' %}">
 <meta name="csrf-token" content="{{ csrf_token }}">
+<script>
+(function(){
+  try{
+    var t=localStorage.getItem("theme");
+    if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}
+    document.documentElement.dataset.theme=t;
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 <nav class="topbar" aria-label="Primary">
@@ -34,6 +43,7 @@
       </form>
     </dialog>
   {% endif %}
+  {% comment %} <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">Tema</button> {% endcomment %}
   {% if request.user.is_authenticated %}
     <div class="user-menu">
       <span class="avatar" aria-hidden="true">{{ request.user.username|first|upper }}</span>

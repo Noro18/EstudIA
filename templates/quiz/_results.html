@@ -5,19 +5,14 @@
     <div class="quiz-card{% if row.is_correct %} card-correct{% else %} card-wrong{% endif %}">
       <p class="quiz-verdict">{% if row.is_correct %}✓ Loos{% else %}✗ Sala{% endif %}</p>
       <p class="quiz-question">{{ row.question.question }}</p>
-      <p class="quiz-answer">Your answer: {% if row.picked %}{{ row.picked }}. {{ row.picked_text }}{% else %}—{% endif %}</p>
+      <p class="quiz-answer">Ita-nia Resposta: {% if row.picked %}{{ row.picked }}. {{ row.picked_text }}{% else %}—{% endif %}</p>
       {% if not row.is_correct %}<p class="quiz-answer">Resposta loos: {{ row.question.correct_letter }}. {{ row.correct_text }}</p>{% endif %}
-      <p class="quiz-source">Source: {{ row.question.chunk.document.title }} · pagina {{ row.question.chunk.page_number }} · “{{ row.question.chunk.text|truncatechars:120 }}”</p>
+      <p class="quiz-source">Origen: {{ row.question.chunk.document.title }} · pagina {{ row.question.chunk.page_number }} · “{{ row.question.chunk.text|truncatechars:120 }}”</p>
     </div>
   {% endfor %}
 
   {% if conversation %}
-    <button class="up" type="button"
-            hx-get="{% url 'notebook_workspace' notebook.pk %}"
-            hx-target="body"
-            hx-swap="innerHTML">
-      Kontinua mensajen
-    </button>
+    <a class="up" href="{% url 'notebook_workspace' notebook.pk %}">Kontinua mensajen</a>
   {% endif %}
 
   <button class="up" type="button" hx-post="{% url 'notebook_quiz_start' notebook.pk %}"

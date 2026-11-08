@@ -1,6 +1,6 @@
 <div class="quiz quiz-review">
-  <p class="quiz-score">Rezultado Kuiz: {{ data.score }} husi {{ data.total }} Loos</p>
-  {% for entry in data.entries %}
+  <p class="quiz-score">Rezultado Kuiz: {{ data.pontu }} husi {{ data.total }} Loos</p>
+  {% for entry in data.tama %}
     <div class="quiz-card">
       <p class="quiz-meta">Pergunta {{ forloop.counter }}{% if entry.source %} · {{ entry.source }}{% endif %}</p>
       <p class="quiz-question">{{ entry.question }}</p>

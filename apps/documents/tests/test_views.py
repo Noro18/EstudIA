@@ -69,10 +69,10 @@ def test_workspace_shell_renders_documents_and_history(logged_in):
     assert b'nb-new-dialog' in response.content
     assert b"Physics 10" in response.content
     assert b"Chapter 1.pdf" in response.content
-    assert b"Reading" in response.content
+    assert b"Lee hela" in response.content
     assert b"Saida mak sutat" in response.content
     assert b"ne&#x27;e?" in response.content
-    assert b"Upload document" in response.content
+    assert b"Haruka Dokumentu" in response.content
 
 
 def test_workspace_isolated_from_other_users(logged_in):
@@ -135,7 +135,7 @@ def test_upload_document_creates_processing_record(logged_in):
     # Should return 200 with document card fragment
     assert response.status_code == 200
     assert b"test" in response.content  # title in card
-    assert b"Reading" in response.content  # processing status
+    assert b"Lee hela" in response.content  # processing status
 
     # Document should exist in DB with processing status
     document = notebook.documents.get(title="test")

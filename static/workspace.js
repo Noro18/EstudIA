@@ -143,7 +143,7 @@ function initWorkspace(){
                   var status=document.createElement("span");
                   status.className="thinking-status";
                   status.setAttribute("role","status");
-                  status.textContent="thinking\u2026";
+                  status.textContent="hanoin hela\u2026";
                   assistant.appendChild(status);
                   feed.appendChild(assistant);
                   feed.scrollTop=Math.max(0,assistant.offsetTop-24);
@@ -278,13 +278,23 @@ function initWorkspace(){
   if(up&&file){
     up.onclick=function(){file.click()};
   }
+  var themeToggle=document.getElementById("theme-toggle");
+  if(themeToggle){
+    themeToggle.onclick=function(){
+      var current=document.documentElement.dataset.theme;
+      var next=current==="dark"?"light":"dark";
+      document.documentElement.dataset.theme=next;
+      try{localStorage.setItem("theme",next)}catch(e){}
+    };
+  }
 }
 document.addEventListener("DOMContentLoaded",initWorkspace);
 
 document.body.addEventListener("htmx:afterRequest",function(event){
   var path=(event.detail.pathInfo&&event.detail.pathInfo.requestPath)||"";
   if(event.detail.successful&&/\/quiz\//.test(path)){
-    window.setTimeout(function(){scrollToLiveEdge(true)},50);
+    var feed=document.getElementById("feed");
+    if(feed)feed.scrollTo({top:feed.scrollHeight,behavior:"smooth"});
   }
 });
 
