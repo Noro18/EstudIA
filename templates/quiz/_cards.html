@@ -1,13 +1,13 @@
 <div class="msg ai quiz-msg">
 <div class="quiz">
-  <p class="quiz-score">Quiz — {{ questions|length }} questions</p>
+  <p class="quiz-score">Quiz — {{ questions|length }} Perguntas</p>
   <form class="quiz-form" hx-post="{% url 'notebook_quiz_submit' notebook.pk %}"
         hx-target="closest .quiz-msg" hx-swap="outerHTML">
     {% csrf_token %}
     {% if conversation %}<input type="hidden" name="conversation_id" value="{{ conversation.pk }}">{% endif %}
     {% for question in questions %}
       <div class="quiz-card">
-        <p class="quiz-meta">Question {{ forloop.counter }} · {{ question.chunk.document.title }} · page {{ question.chunk.page_number }}</p>
+        <p class="quiz-meta">Question {{ forloop.counter }} · {{ question.chunk.document.title }} · pagina {{ question.chunk.page_number }}</p>
         <p class="quiz-question">{{ question.question }}</p>
         <div class="quiz-options">
           {% for letter, text in question.choices.items %}
@@ -19,7 +19,7 @@
         </div>
       </div>
     {% endfor %}
-    <button class="send" type="submit">Submit answers</button>
+    <button class="send" type="submit">Haruka Resposta</button>
   </form>
 </div>
 </div>

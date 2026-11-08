@@ -1,14 +1,14 @@
 <div class="quiz quiz-review">
-  <p class="quiz-score">Quiz result: {{ data.score }} of {{ data.total }} correct</p>
+  <p class="quiz-score">Rezultado Kuiz: {{ data.score }} husi {{ data.total }} Loos</p>
   {% for entry in data.entries %}
     <div class="quiz-card">
-      <p class="quiz-meta">Question {{ forloop.counter }}{% if entry.source %} · {{ entry.source }}{% endif %}</p>
+      <p class="quiz-meta">Pergunta {{ forloop.counter }}{% if entry.source %} · {{ entry.source }}{% endif %}</p>
       <p class="quiz-question">{{ entry.question }}</p>
       <div class="quiz-options">
         {% for letter, text in entry.choices.items %}
           <div class="quiz-option{% if letter == entry.correct %} is-correct{% elif letter == entry.picked %} is-wrong{% endif %}">
             <span class="quiz-letter">{{ letter }}</span> {{ text }}
-            {% if letter == entry.correct %}<span class="quiz-tag">Correct answer{% if entry.picked == letter %} (your answer){% endif %}</span>{% elif letter == entry.picked %}<span class="quiz-tag">Your answer</span>{% endif %}
+            {% if letter == entry.correct %}<span class="quiz-tag">Resposta Loos{% if entry.picked == letter %} (ita nia resposta){% endif %}</span>{% elif letter == entry.picked %}<span class="quiz-tag">Ita-nia Resposta</span>{% endif %}
           </div>
         {% endfor %}
       </div>

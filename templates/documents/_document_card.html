@@ -8,11 +8,11 @@
   <a href="{% url 'document_detail' document.pk %}">{{ document.title }}</a>
   <small class="doc-status" role="status" aria-live="polite">
     {% if document.status == 'processing' %}
-      <span class="status-spinner" aria-hidden="true"></span><span class="status-label">Reading…</span>
+      <span class="status-spinner" aria-hidden="true"></span><span class="status-label">Lee hela…</span>
     {% elif document.status == 'ready' %}
-      <span class="status-ready" aria-hidden="true">✓</span><span class="status-label">{{ document.page_count }} pages</span>
+      <span class="status-ready" aria-hidden="true">✓</span><span class="status-label">{{ document.page_count }} Paginas</span>
     {% else %}
-      <span class="status-label">Failed</span>
+      <span class="status-label">Failla</span>
     {% endif %}
   </small>
   <button type="button" aria-label="Remove {{ document.title }}" title="Remove document"
