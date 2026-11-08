@@ -28,7 +28,7 @@
     <dialog id="nb-new-dialog" class="nb-dialog">
       <form method="post" action="{% url 'notebook_list' %}">
         {% csrf_token %}
-        <label class="hint" for="nb-new-title">New notebook</label>
+        <label class="hint" for="nb-new-title">Kadernu foun</label>
         <input id="nb-new-title" type="text" name="title" placeholder="Notebook title" required>
         <button class="up" type="submit">Create</button>
       </form>
@@ -40,11 +40,11 @@
       <span class="user-name">{{ request.user.username }}</span>
       <form method="post" action="{% url 'logout' %}">
         {% csrf_token %}
-        <button class="logout" type="submit">Log out</button>
+        <button class="logout" type="submit">Sai</button>
       </form>
     </div>
   {% else %}
-    <a class="login-link" href="{% url 'login' %}">Log in</a>
+    <a class="login-link" href="{% url 'login' %}">Tama</a>
   {% endif %}
 </nav>
 <div class="shell">

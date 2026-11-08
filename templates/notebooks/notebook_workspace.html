@@ -3,7 +3,7 @@
 {% block content %}
 <aside class="side" id="side">
   <h1>{{ notebook.title }}</h1>
-  <button class="up" id="up" type="button">Upload document</button>
+  <button class="up" id="up" type="button">Haruka Dokumentu</button>
   <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" multiple hidden
          hx-trigger="change"
          hx-post="{% url 'notebook_upload_document' notebook.pk %}"
@@ -17,25 +17,25 @@
           hx-target="#quiz-area"
           hx-swap="innerHTML"
           hx-indicator="#quiz-loading"
-          hx-disabled-elt="this">Quiz me</button>
-  <p class="hint">PDF, Word (.docx), or text files. Ask questions about them in the chat.</p>
+          hx-disabled-elt="this">Kuiz Ha'u</button>
+  <p class="hint">PDF, Word (.docx), ka Dokumentu testu. Husu pergunta kona-ba sira iha mensajen.</p>
   <ul class="docs" id="docs">
     {% for doc in notebook.documents.all %}
       {% include "documents/_document_card.html" with document=doc notebook=notebook %}
     {% empty %}
-      <li class="empty">No documents yet</li>
+      <li class="empty">Seidauk iha Dokumentu</li>
     {% endfor %}
   </ul>
   {% if notebook.conversations.exists %}
-    <p class="hint">Conversations</p>
+    <p class="hint">Konversasaun</p>
     <ul class="docs">
       {% for conv in notebook.conversations.all %}
-        <li><a class="doc" href="{% url 'conversation_detail' conv.pk %}">Conversation #{{ conv.pk }}</a></li>
+        <li><a class="doc" href="{% url 'conversation_detail' conv.pk %}">Konversasaun #{{ conv.pk }}</a></li>
       {% endfor %}
     </ul>
   {% endif %}
 </aside>
-<button class="menu" id="menu" aria-label="Documents">☰ Documents</button>
+<button class="menu" id="menu" aria-label="Documents">☰ Dokumentu sira</button>
 <main class="chat">
   <div class="feed" id="feed" aria-live="polite">
     {% if conversation %}
@@ -47,7 +47,7 @@
         {% endif %}
       {% endfor %}
     {% else %}
-      <div class="msg sys" id="intro">Upload a document, then ask a question about it.</div>
+      <div class="msg sys" id="intro">Submete Dokumentu, depois husu pergunta kona-ba nia.</div>
     {% endif %}
     <button class="jump-latest" id="jump-latest" type="button" hidden>
       Jump to latest
@@ -56,7 +56,7 @@
   
   <div class="quiz-zone" id="quiz-area" aria-live="polite">
     <span class="quiz-loading" id="quiz-loading">
-      <span class="quiz-spin"></span> Making your quiz…
+      <span class="quiz-spin"></span> prepara kuiz…
     </span>
   </div>
 
@@ -64,7 +64,7 @@
     {% csrf_token %}
     <input type="hidden" id="conversation-id" name="conversation_id" value="{% if conversation %}{{ conversation.pk }}{% endif %}">
     <textarea id="q" name="question" rows="1" placeholder="Ask about your document…"></textarea>
-    <button class="send" id="send" type="submit">Send</button>
+    <button class="send" id="send" type="submit">Haruka</button>
   </form>
 </main>
 {% endblock content %}
