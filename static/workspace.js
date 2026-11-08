@@ -278,6 +278,15 @@ function initWorkspace(){
   if(up&&file){
     up.onclick=function(){file.click()};
   }
+  var themeToggle=document.getElementById("theme-toggle");
+  if(themeToggle){
+    themeToggle.onclick=function(){
+      var current=document.documentElement.dataset.theme;
+      var next=current==="dark"?"light":"dark";
+      document.documentElement.dataset.theme=next;
+      try{localStorage.setItem("theme",next)}catch(e){}
+    };
+  }
 }
 document.addEventListener("DOMContentLoaded",initWorkspace);
 
