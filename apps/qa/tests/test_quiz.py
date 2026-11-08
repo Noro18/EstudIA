@@ -112,7 +112,7 @@ def test_submit_scores_locally(client):
     data = {f"answer_{questions[0].pk}": "A", f"answer_{questions[1].pk}": "A"}
     response = client.post(reverse("notebook_quiz_submit", args=[notebook.pk]), data)
     assert response.status_code == 200
-    assert "Score: 1/2" in response.content.decode()
+    assert "Pontu: 1/2" in response.content.decode()
 
 @pytest.mark.django_db
 def test_quiz_start_carries_conversation_id(client, monkeypatch):

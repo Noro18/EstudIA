@@ -143,7 +143,7 @@ function initWorkspace(){
                   var status=document.createElement("span");
                   status.className="thinking-status";
                   status.setAttribute("role","status");
-                  status.textContent="thinking\u2026";
+                  status.textContent="hanoin hela\u2026";
                   assistant.appendChild(status);
                   feed.appendChild(assistant);
                   feed.scrollTop=Math.max(0,assistant.offsetTop-24);
