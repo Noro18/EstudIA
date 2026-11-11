@@ -170,6 +170,11 @@ function initWorkspace(){
                   // Citations ride the done event (spec 13): chips under the
                   // bubble; each opens the stored excerpt. No JS storage —
                   // the server already persisted MessageSource rows.
+                  if(data.html){
+                    // Final re-render from stripped stored content (C4): the
+                    // live bubble ends clean even if a marker slipped through.
+                    assistant.innerHTML=data.html;
+                  }
                   if(data.supported===false){
                     var note=document.createElement("div");
                     note.className="unsupported-note";

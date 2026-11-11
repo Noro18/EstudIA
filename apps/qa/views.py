@@ -14,7 +14,7 @@ from django.utils.safestring import mark_safe
 from django.db.models import Count, Max, ProtectedError
 
 from apps.llm.adapter import GeminiAdapter, LLMUnavailable, build_adapter
-from apps.qa.services import finalize_assistant_message
+from apps.qa.services import finalize_assistant_message, trim_trailing_marker
 from apps.rag.prompting import build_grounded_messages
 from apps.rag.retrieval import retrieve_hybrid_chunks
 from apps.qa.models import Conversation, Message
@@ -189,7 +189,10 @@ def _stream_answer(user, conversation, user_message):
                 groups = list(_stream_word_groups(item["text"]))
                 for index, group in enumerate(groups):
                     answer_parts.append(group)
-                    yield _sse("message", {"html": render_markdown("".join(answer_parts))})
+                    # Marker trimmed per event (spec 13 C4): the user must
+                    # never watch the plumbing line stream in.
+                    html = render_markdown(trim_trailing_marker("".join(answer_parts)))
+                    yield _sse("message", {"html": html})
                     if index < len(groups) - 1:
                         time.sleep(STREAM_WORD_DELAY_SECONDS)
         worker.join()
@@ -210,6 +213,10 @@ def _stream_answer(user, conversation, user_message):
             {
                 "conversation_id": conversation.pk,
                 "supported": message.supported,
+                # Final re-render from the stripped stored content (C4):
+                # belt-and-braces — the bubble ends clean even if a marker
+                # slipped past the per-event trim.
+                "html": mark_safe(render_markdown(message.content)),
                 "sources": [
                     {
                         "document": source.chunk.document.title,

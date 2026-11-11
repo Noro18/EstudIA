@@ -30,6 +30,12 @@ LETTERS = ("A", "B", "C", "D")
 # piece must be a positive integer or it is dropped (never guessed).
 _USED_CHUNKS_RE = re.compile(r"^Used chunks: \[(?P<numbers>[^\]]*)\]\.?\s*$")
 
+# Same marker mid-stream: it arrives last, possibly in pieces ("Used chunks:",
+# "[1,", "2]"). The live bubble must never show any trailing form of it
+# (spec 13 C4 — rendered bubbles stay clean) or the final `done` re-render
+# arrives too late and the plumbing line flashes on screen.
+_TRAILING_MARKER_RE = re.compile(r"(?:^|\n)Used chunks[^\n]*\Z")
+
 
 def parse_used_chunks(answer):
     """Chunk numbers the model claims to have used (spec 13 C1/C5).
@@ -71,6 +77,24 @@ def strip_used_chunks(answer):
     if _USED_CHUNKS_RE.match(last_line):
         return text.rsplit("\n", 1)[0].rstrip()
     return text
+
+
+def trim_trailing_marker(streamed_text):
+    """Answer-so-far for the live SSE re-render, without a budding marker line.
+
+    Stronger than `strip_used_chunks`: it also cuts the marker while it is
+    still streaming in pieces (spec 13 C2 flow — `done` only re-renders once,
+    so the per-event HTML is what the user actually watches). Anything after
+    a line starting with `Used chunks` at the END of the text goes; markers
+    in mid-answer stay (they are parse targets, never display targets).
+    """
+    text = (streamed_text or "").rstrip()
+    if not text:
+        return text
+    match = _TRAILING_MARKER_RE.search(text)
+    if not match:
+        return text
+    return text[: match.start()].rstrip()
 
 
 def _citation_excerpt(text):
