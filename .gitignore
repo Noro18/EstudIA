@@ -21,3 +21,7 @@ media/
 
 # Local editor settings
 .vscode/
+
+# Prize materials (Labadain API example). Never commit the API key — it lives
+# in .env as LABADAIN_API_KEY.
+Prize/
