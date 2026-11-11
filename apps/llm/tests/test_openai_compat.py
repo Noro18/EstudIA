@@ -76,17 +76,93 @@ def test_complete_returns_text_with_usage_and_call_info(fast_sleep):
     assert sent["messages"] == [{"role": "user", "content": "hi"}]
 
 
-def test_stream_yields_the_whole_answer_then_final_usage(fast_sleep):
-    adapter, _ = make_adapter([completion_response("Resposta osan")])
+def sse_body(*deltas, usage=None):
+    """Encode SSE chunks the way the Labadain endpoint sends them."""
+    events = []
+    for item in deltas:
+        events.append("data: " + json.dumps(item))
+    if usage:
+        events.append("data: " + json.dumps({"choices": [], "usage": usage}))
+    events.append("data: [DONE]")
+    return ("\n\n".join(events) + "\n").encode()
+
+
+def delta(text=None, reasoning=None):
+    payload = {}
+    if text is not None:
+        payload["content"] = text
+    if reasoning is not None:
+        payload["reasoning"] = reasoning
+    return {"choices": [{"index": 0, "delta": payload, "finish_reason": None}]}
+
+
+def test_stream_yields_each_delta_then_final_usage(fast_sleep):
+    body = sse_body(
+        delta(text="Resposta "),
+        delta(text="osan"),
+        usage={"prompt_tokens": 9, "completion_tokens": 5},
+    )
+    adapter, _ = make_adapter([httpx.Response(200, content=body)])
 
     events = list(
         adapter.generate([{"role": "user", "parts": [{"text": "hi"}]}], stream=True)
     )
 
-    # Upstream cannot stream: one text event, then the authoritative empty-text
-    # usage event (the contract the QA view keeps the last of).
-    assert [event["text"] for event in events] == ["Resposta osan", ""]
+    # Real SSE now: one text event per delta, then the authoritative
+    # empty-text usage event (the contract the QA view keeps the last of).
+    assert [event["text"] for event in events] == ["Resposta ", "osan", ""]
     assert events[-1]["usage"]["completion_tokens"] == 5
+
+
+def test_stream_skips_reasoning_and_done_sentinels(fast_sleep):
+    body = sse_body(
+        delta(reasoning="Thinking Process:"),
+        delta(reasoning="1. Analyze"),
+        delta(text="Ola!"),
+        delta(text=None),
+    )
+    adapter, _ = make_adapter([httpx.Response(200, content=body)])
+
+    events = list(
+        adapter.generate([{"role": "user", "parts": [{"text": "hi"}]}], stream=True)
+    )
+
+    assert [event["text"] for event in events] == ["Ola!", ""]
+
+
+def test_stream_retries_transport_failure_before_any_text(fast_sleep):
+    body = sse_body(delta(text="back"), usage={"prompt_tokens": 1, "completion_tokens": 1})
+    adapter, calls = make_adapter(
+        [httpx.ConnectError("down"), httpx.Response(200, content=body)]
+    )
+
+    events = list(
+        adapter.generate([{"role": "user", "parts": [{"text": "hi"}]}], stream=True)
+    )
+
+    assert [event["text"] for event in events] == ["back", ""]
+    assert len(calls) == 2
+
+
+def test_stream_failure_after_text_never_retries(fast_sleep):
+    class _DyingStream(httpx.SyncByteStream):
+        """A stream that delivers one delta, then the connection dies."""
+
+        def __iter__(self):
+            yield ("data: " + json.dumps(delta(text="partial")) + "\n\n").encode()
+            raise httpx.ReadTimeout("connection died")
+
+    adapter, calls = make_adapter(
+        [httpx.Response(200, stream=_DyingStream()), httpx.Response(500)]
+    )
+
+    events = adapter.generate([{"role": "user", "parts": [{"text": "hi"}]}], stream=True)
+    assert next(events)["text"] == "partial"
+
+    # Mid-stream death must surface, not silently re-send into the same bubble.
+    with pytest.raises(LLMUnavailable, match="interrupted mid-answer"):
+        next(events)
+    assert len(calls) == 1
 
 
 def test_retries_transport_failures_then_succeeds(fast_sleep):

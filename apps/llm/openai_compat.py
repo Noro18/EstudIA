@@ -1,15 +1,19 @@
-"""OpenAI-compatible adapter — for self-hosted endpoints behind a tunnel.
+"""OpenAI-compatible adapter — for the hosted Labadain API (PRD § 7).
 
 Selected with LLM_PROVIDER=openai_compat; the endpoint and key come from
 OPENAI_COMPAT_BASE_URL / OPENAI_COMPAT_API_KEY, the model from LLM_MODEL.
-The upstream is self-hosted, so estimated cost is $0 per call (PRD § 9 still
-wants tokens, latency, and cost logged — they go to the logger every call).
+The upstream is free for the team (prize for 1st place, Nov 11), so estimated
+cost is $0 per call (PRD § 9 still wants tokens, latency, and cost logged —
+they go to the logger every call).
 
-The Kaggle server does not implement streaming ("Streaming is not supported"),
-so stream=True performs one blocking POST and yields the finished answer as a
-single event; the SSE view typewrites it client-side. There is therefore no
-mid-stream re-send risk: a retry replays the whole POST before any text moved.
+The endpoint streams real SSE (`stream: true`): answer deltas arrive in
+`choices[].delta.content`, thinking tokens in `delta.reasoning`. Reasoning
+deltas are never yielded — thinking is off for this app (LLM_THINK, decided
+Nov 11) and, even if the server streams a reasoning chunk anyway, it must not
+reach the UI. Retries only happen before the first text delta: once text has
+moved to the caller, a failure raises instead of re-sending (no duplication).
 """
+import json
 import logging
 import time
 
@@ -50,6 +54,7 @@ class OpenAICompatAdapter:
         model=None,
         timeout_seconds=None,
         retries=None,
+        think=None,
         transport=None,
     ):
         self.base_url = (base_url if base_url is not None else settings.OPENAI_COMPAT_BASE_URL).rstrip("/")
@@ -59,6 +64,11 @@ class OpenAICompatAdapter:
             timeout_seconds if timeout_seconds is not None else settings.LLM_TIMEOUT_SECONDS
         )
         self.retries = retries if retries is not None else settings.LLM_RETRIES
+        # Thinking mode (decided Nov 11: off — faster answers, retrieval
+        # already grounds the response). env: LLM_THINK=true to re-enable.
+        self.think = (
+            think if think is not None else getattr(settings, "LLM_THINK", False)
+        )
         # transport lets tests swap in httpx.MockTransport — no network.
         self._transport = transport
 
@@ -73,22 +83,85 @@ class OpenAICompatAdapter:
         return {"text": _text_from_response(response), "usage": usage}
 
     def _generate_stream(self, messages):
-        # The upstream cannot stream: yield the finished answer in one go.
-        # The SSE view typewrites it client-side, so the UX stays the same.
-        response, usage = self._request(messages)
-        yield {"text": _text_from_response(response), "usage": {}}
-        yield {"text": "", "usage": usage}
+        started_at = time.perf_counter()
+        for attempt in range(self.retries + 1):
+            emitted_text = False
+            try:
+                with self._client() as client:
+                    with client.stream(
+                        "POST",
+                        "/chat/completions",
+                        headers=self._headers(),
+                        json=self._payload(messages, stream=True),
+                    ) as response:
+                        _check_status(response)
+                        usage = {}
+                        for line in response.iter_lines():
+                            chunk = _sse_chunk(line)
+                            if chunk is None:
+                                continue
+                            if chunk.get("usage"):
+                                usage = chunk["usage"]
+                            content = _delta_content(chunk)
+                            if content:
+                                emitted_text = True
+                                yield {"text": content, "usage": {}}
+            except (httpx.TimeoutException, httpx.TransportError, HTTPRateLimited, HTTPStatusError) as exc:
+                if isinstance(exc, HTTPRateLimited):
+                    # The server already told us to slow down — blind retries
+                    # would just repeat the same answer.
+                    logger.warning("%s rate limit exhausted; not retrying", self.model)
+                    raise LLMRateLimited(
+                        "Rate limit reached — the model server is busy; try again shortly."
+                    ) from None
+                if emitted_text:
+                    # Text already delivered to the caller — never re-send.
+                    logger.exception("stream interrupted after a partial answer")
+                    raise LLMUnavailable(
+                        "The stream was interrupted mid-answer."
+                    ) from exc
+                if attempt == self.retries:
+                    logger.exception(
+                        "%s stream failed after %s attempts (%s)",
+                        self.model,
+                        attempt + 1,
+                        exc,
+                    )
+                    raise LLMUnavailable(
+                        f"{self.model} did not return an answer in time."
+                    ) from exc
+                logger.warning("%s stream failed; retrying attempt=%s", self.model, attempt + 1)
+                time.sleep(2**attempt)
+            else:
+                usage = _usage_from_body(usage)
+                usage["latency_ms"] = int((time.perf_counter() - started_at) * 1000)
+                usage["provider"] = "openai_compat"
+                usage["model"] = self.model
+                logger.info(
+                    "llm call: provider=%s model=%s prompt_tokens=%s completion_tokens=%s "
+                    "latency_ms=%s cost_usd=0.00",
+                    usage["provider"],
+                    usage["model"],
+                    usage.get("prompt_tokens"),
+                    usage.get("completion_tokens"),
+                    usage["latency_ms"],
+                )
+                # The QA view keeps the last usage it sees (adapter contract),
+                # so the authoritative totals ride the final empty-text event.
+                yield {"text": "", "usage": usage}
+                return
 
     def _request(self, messages):
         """POST once (with retries) and return (response, usage)."""
         started_at = time.perf_counter()
-        payload = {
-            "model": self.model,
-            "messages": to_openai_messages(messages),
-        }
+        payload = self._payload(messages)
         for attempt in range(self.retries + 1):
             try:
-                response = self._post(payload)
+                with self._client() as client:
+                    response = client.post(
+                        "/chat/completions", headers=self._headers(), json=payload
+                    )
+                _check_status(response)
                 break
             except (httpx.TimeoutException, httpx.TransportError):
                 if attempt == self.retries:
@@ -138,25 +211,28 @@ class OpenAICompatAdapter:
         )
         return response, usage
 
-    def _post(self, payload):
-        with httpx.Client(
+    def _client(self):
+        return httpx.Client(
             base_url=self.base_url,
             timeout=httpx.Timeout(self.timeout_seconds, connect=5.0),
             transport=self._transport,
-        ) as client:
-            response = client.post(
-                "/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-        if response.status_code == 429:
-            raise HTTPRateLimited()
-        if response.status_code >= 400:
-            raise HTTPStatusError(response.status_code)
-        return response
+        )
+
+    def _headers(self):
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+    def _payload(self, messages, stream=False):
+        payload = {
+            "model": self.model,
+            "messages": to_openai_messages(messages),
+            "think": self.think,
+        }
+        if stream:
+            payload["stream"] = True
+        return payload
 
 
 class HTTPRateLimited(Exception):
@@ -171,6 +247,35 @@ class HTTPStatusError(Exception):
         self.status = status
 
 
+def _check_status(response):
+    if response.status_code == 429:
+        raise HTTPRateLimited()
+    if response.status_code >= 400:
+        raise HTTPStatusError(response.status_code)
+
+
+def _sse_chunk(line):
+    """Parse one SSE line into a chunk dict, or None for blanks/[DONE]/junk."""
+    line = (line or "").strip()
+    if not line.startswith("data:"):
+        return None
+    data = line[len("data:"):].strip()
+    if not data or data == "[DONE]":
+        return None
+    try:
+        return json.loads(data)
+    except ValueError:
+        logger.warning("Skipping malformed SSE chunk: %r", line[:120])
+        return None
+
+
+def _delta_content(chunk):
+    """Answer text from one chunk; reasoning deltas never leave this module."""
+    choices = chunk.get("choices") or [{}]
+    delta = choices[0].get("delta") or {}
+    return delta.get("content")
+
+
 def _text_from_response(response):
     body = response.json()
     choices = body.get("choices") or [{}]
@@ -179,8 +284,10 @@ def _text_from_response(response):
 
 
 def _usage_from_response(response):
-    body = response.json()
-    usage = body.get("usage") or {}
+    return _usage_from_body(response.json().get("usage") or {})
+
+
+def _usage_from_body(usage):
     return {
         "prompt_tokens": usage.get("prompt_tokens") or 0,
         "completion_tokens": usage.get("completion_tokens") or 0,

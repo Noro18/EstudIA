@@ -100,6 +100,9 @@ OPENAI_COMPAT_BASE_URL = os.environ.get("OPENAI_COMPAT_BASE_URL", "").rstrip("/"
 OPENAI_COMPAT_API_KEY = os.environ.get("OPENAI_COMPAT_API_KEY", "")
 LLM_RETRIES = int(os.environ.get("LLM_RETRIES", "2"))
 LLM_TIMEOUT_SECONDS = int(os.environ.get("LLM_TIMEOUT_SECONDS", "45"))
+# Thinking mode for thinking-capable models (Labadain Gemma). Decided Nov 11:
+# off — faster answers, retrieval already grounds the response.
+LLM_THINK = os.environ.get("LLM_THINK", "false").lower() == "true"
 LLM_ROUTER_MODEL = os.environ.get("LLM_ROUTER_MODEL", "")
 LLM_ROUTER_TIMEOUT_SECONDS = int(os.environ.get("LLM_ROUTER_TIMEOUT_SECONDS", "15"))
 LLM_FALLBACK_PROVIDER = os.environ.get("LLM_FALLBACK_PROVIDER", "")
