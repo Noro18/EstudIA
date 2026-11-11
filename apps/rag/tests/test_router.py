@@ -1,5 +1,6 @@
 """Router unit tests — stubbed adapter, no network (spec 12 § 5)."""
 import pytest
+from importlib import import_module, reload as importlib_reload
 
 from django.conf import settings
 
@@ -120,5 +121,20 @@ def test_route_question_history_keeps_the_original_question(stub_answer):
     assert question == "Tanba sa o la temi?"
 
 
-def test_settings_default_router_model_is_off(settings):
-    assert settings.LLM_ROUTER_MODEL == ""
+def test_settings_default_router_model_is_off(monkeypatch):
+    """settings.py must default LLM_ROUTER_MODEL to "" — the router is opt-in
+    via the env (PRD § 7 cost discipline). A dev machine may set the var in
+    `.env`, which load_dotenv() pulls back into os.environ even after we
+    delete it — so the dotenv loader itself is stubbed (a module-level
+    `from dotenv import load_dotenv` would otherwise rebind the real one when
+    the module reloads). Then config/settings.py is reloaded to re-evaluate
+    its fallback, and the attr restored so later code never sees this state."""
+    settings_module = import_module("config.settings")
+    original = settings_module.LLM_ROUTER_MODEL
+    monkeypatch.delenv("LLM_ROUTER_MODEL", raising=False)
+    monkeypatch.setattr("dotenv.load_dotenv", lambda *args, **kwargs: None)
+    importlib_reload(settings_module)
+    try:
+        assert settings_module.LLM_ROUTER_MODEL == ""
+    finally:
+        settings_module.LLM_ROUTER_MODEL = original
